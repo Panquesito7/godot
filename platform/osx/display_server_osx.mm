@@ -585,7 +585,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 		ke.pressed = true;
 		ke.echo = false;
 		ke.raw = false; // IME input event
-		ke.keycode = 0;
+		ke.keycode = KEY_NONE;
 		ke.physical_keycode = 0;
 		ke.unicode = codepoint;
 
@@ -690,7 +690,7 @@ static void _mouseDownEvent(DisplayServer::WindowID window_id, NSEvent *event, M
 		mb->set_double_click([event clickCount] == 2);
 	}
 
-	Input::get_singleton()->accumulate_input_event(mb);
+	Input::get_singleton()->parse_input_event(mb);
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -799,7 +799,7 @@ static void _mouseDownEvent(DisplayServer::WindowID window_id, NSEvent *event, M
 	_get_key_modifier_state([event modifierFlags], mm);
 
 	Input::get_singleton()->set_mouse_position(wd.mouse_pos);
-	Input::get_singleton()->accumulate_input_event(mm);
+	Input::get_singleton()->parse_input_event(mm);
 }
 
 - (void)rightMouseDown:(NSEvent *)event {
@@ -875,7 +875,7 @@ static void _mouseDownEvent(DisplayServer::WindowID window_id, NSEvent *event, M
 	ev->set_position(_get_mouse_pos(wd, [event locationInWindow]));
 	ev->set_factor([event magnification] + 1.0);
 
-	Input::get_singleton()->accumulate_input_event(ev);
+	Input::get_singleton()->parse_input_event(ev);
 }
 
 - (void)viewDidChangeBackingProperties {
@@ -928,9 +928,9 @@ static bool isNumpadKey(unsigned int key) {
 
 // Translates a OS X keycode to a Godot keycode
 //
-static int translateKey(unsigned int key) {
+static Key translateKey(unsigned int key) {
 	// Keyboard symbol translation table
-	static const unsigned int table[128] = {
+	static const Key table[128] = {
 		/* 00 */ KEY_A,
 		/* 01 */ KEY_S,
 		/* 02 */ KEY_D,
@@ -1070,7 +1070,7 @@ static int translateKey(unsigned int key) {
 
 struct _KeyCodeMap {
 	UniChar kchar;
-	int kcode;
+	Key kcode;
 };
 
 static const _KeyCodeMap _keycodes[55] = {
@@ -1131,7 +1131,7 @@ static const _KeyCodeMap _keycodes[55] = {
 	{ '/', KEY_SLASH }
 };
 
-static int remapKey(unsigned int key, unsigned int state) {
+static Key remapKey(unsigned int key, unsigned int state) {
 	if (isNumpadKey(key)) {
 		return translateKey(key);
 	}
@@ -1357,7 +1357,7 @@ inline void sendScrollEvent(DisplayServer::WindowID window_id, MouseButton butto
 	DS_OSX->last_button_state |= (MouseButton)mask;
 	sc->set_button_mask(DS_OSX->last_button_state);
 
-	Input::get_singleton()->accumulate_input_event(sc);
+	Input::get_singleton()->parse_input_event(sc);
 
 	sc.instantiate();
 	sc->set_window_id(window_id);
@@ -1369,7 +1369,7 @@ inline void sendScrollEvent(DisplayServer::WindowID window_id, MouseButton butto
 	DS_OSX->last_button_state &= (MouseButton)~mask;
 	sc->set_button_mask(DS_OSX->last_button_state);
 
-	Input::get_singleton()->accumulate_input_event(sc);
+	Input::get_singleton()->parse_input_event(sc);
 }
 
 inline void sendPanEvent(DisplayServer::WindowID window_id, double dx, double dy, int modifierFlags) {
@@ -1384,7 +1384,7 @@ inline void sendPanEvent(DisplayServer::WindowID window_id, double dx, double dy
 	pg->set_position(wd.mouse_pos);
 	pg->set_delta(Vector2(-dx, -dy));
 
-	Input::get_singleton()->accumulate_input_event(pg);
+	Input::get_singleton()->parse_input_event(pg);
 }
 
 - (void)scrollWheel:(NSEvent *)event {
@@ -3198,7 +3198,7 @@ String DisplayServerOSX::keyboard_get_layout_name(int p_index) const {
 
 void DisplayServerOSX::_push_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEvent> ev = p_event;
-	Input::get_singleton()->accumulate_input_event(ev);
+	Input::get_singleton()->parse_input_event(ev);
 }
 
 void DisplayServerOSX::_release_pressed_events() {
@@ -3253,7 +3253,7 @@ void DisplayServerOSX::_send_event(NSEvent *p_event) {
 			k->set_physical_keycode(KEY_PERIOD);
 			k->set_echo([p_event isARepeat]);
 
-			Input::get_singleton()->accumulate_input_event(k);
+			Input::get_singleton()->parse_input_event(k);
 		}
 	}
 }
@@ -3271,7 +3271,7 @@ void DisplayServerOSX::_process_key_events() {
 			k->set_pressed(ke.pressed);
 			k->set_echo(ke.echo);
 			k->set_keycode(ke.keycode);
-			k->set_physical_keycode(ke.physical_keycode);
+			k->set_physical_keycode((Key)ke.physical_keycode);
 			k->set_unicode(ke.unicode);
 
 			_push_input(k);
@@ -3284,8 +3284,8 @@ void DisplayServerOSX::_process_key_events() {
 				_get_key_modifier_state(ke.osx_state, k);
 				k->set_pressed(ke.pressed);
 				k->set_echo(ke.echo);
-				k->set_keycode(0);
-				k->set_physical_keycode(0);
+				k->set_keycode(KEY_NONE);
+				k->set_physical_keycode(KEY_NONE);
 				k->set_unicode(ke.unicode);
 
 				_push_input(k);
@@ -3298,7 +3298,7 @@ void DisplayServerOSX::_process_key_events() {
 				k->set_pressed(ke.pressed);
 				k->set_echo(ke.echo);
 				k->set_keycode(ke.keycode);
-				k->set_physical_keycode(ke.physical_keycode);
+				k->set_physical_keycode((Key)ke.physical_keycode);
 
 				if (i + 1 < key_event_pos && key_event_buffer[i + 1].keycode == 0) {
 					k->set_unicode(key_event_buffer[i + 1].unicode);
@@ -3331,7 +3331,7 @@ void DisplayServerOSX::process_events() {
 
 	if (!drop_events) {
 		_process_key_events();
-		Input::get_singleton()->flush_accumulated_events();
+		Input::get_singleton()->flush_buffered_events();
 	}
 
 	for (Map<WindowID, WindowData>::Element *E = windows.front(); E; E = E->next()) {

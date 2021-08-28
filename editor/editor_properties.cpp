@@ -121,7 +121,7 @@ void EditorPropertyMultilineText::_open_big_text() {
 	if (!big_text_dialog) {
 		big_text = memnew(TextEdit);
 		big_text->connect("text_changed", callable_mp(this, &EditorPropertyMultilineText::_big_text_changed));
-		big_text->set_wrap_enabled(true);
+		big_text->set_line_wrapping_mode(TextEdit::LineWrappingMode::LINE_WRAPPING_BOUNDARY);
 		big_text_dialog = memnew(AcceptDialog);
 		big_text_dialog->add_child(big_text);
 		big_text_dialog->set_title(TTR("Edit Text:"));
@@ -166,7 +166,7 @@ EditorPropertyMultilineText::EditorPropertyMultilineText() {
 	set_bottom_editor(hb);
 	text = memnew(TextEdit);
 	text->connect("text_changed", callable_mp(this, &EditorPropertyMultilineText::_text_changed));
-	text->set_wrap_enabled(true);
+	text->set_line_wrapping_mode(TextEdit::LineWrappingMode::LINE_WRAPPING_BOUNDARY);
 	add_focusable(text);
 	hb->add_child(text);
 	text->set_h_size_flags(SIZE_EXPAND_FILL);
@@ -735,7 +735,7 @@ public:
 		return String();
 	}
 
-	void _gui_input(const Ref<InputEvent> &p_ev) {
+	void gui_input(const Ref<InputEvent> &p_ev) override {
 		const Ref<InputEventMouseMotion> mm = p_ev;
 		if (mm.is_valid()) {
 			bool expand_was_hovered = expand_hovered;
@@ -837,7 +837,7 @@ public:
 							Vector2 offset;
 							offset.y = rect2.size.y * 0.75;
 
-							draw_string(font, rect2.position + offset, itos(layer_index), HALIGN_CENTER, rect2.size.x, -1, on ? text_color_on : text_color);
+							draw_string(font, rect2.position + offset, itos(layer_index + 1), HALIGN_CENTER, rect2.size.x, -1, on ? text_color_on : text_color);
 
 							ofs.x += bsize + 1;
 
@@ -931,7 +931,6 @@ public:
 	}
 
 	static void _bind_methods() {
-		ClassDB::bind_method(D_METHOD("_gui_input"), &EditorPropertyLayersGrid::_gui_input);
 		ADD_SIGNAL(MethodInfo("flag_changed", PropertyInfo(Variant::INT, "flag")));
 	}
 };
@@ -993,12 +992,12 @@ void EditorPropertyLayers::setup(LayerType p_layer_type) {
 	for (int i = 0; i < layer_count; i++) {
 		String name;
 
-		if (ProjectSettings::get_singleton()->has_setting(basename + vformat("/layer_%d", i))) {
-			name = ProjectSettings::get_singleton()->get(basename + vformat("/layer_%d", i));
+		if (ProjectSettings::get_singleton()->has_setting(basename + vformat("/layer_%d", i + 1))) {
+			name = ProjectSettings::get_singleton()->get(basename + vformat("/layer_%d", i + 1));
 		}
 
 		if (name == "") {
-			name = vformat(TTR("Layer %d"), i);
+			name = vformat(TTR("Layer %d"), i + 1);
 		}
 
 		names.push_back(name);

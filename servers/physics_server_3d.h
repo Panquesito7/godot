@@ -212,7 +212,7 @@ class PhysicsServer3D : public Object {
 
 	static PhysicsServer3D *singleton;
 
-	virtual bool _body_test_motion(RID p_body, const Transform3D &p_from, const Vector3 &p_motion, bool p_infinite_inertia, real_t p_margin = 0.001, const Ref<PhysicsTestMotionResult3D> &p_result = Ref<PhysicsTestMotionResult3D>());
+	virtual bool _body_test_motion(RID p_body, const Transform3D &p_from, const Vector3 &p_motion, real_t p_margin = 0.001, const Ref<PhysicsTestMotionResult3D> &p_result = Ref<PhysicsTestMotionResult3D>(), bool p_collide_separation_ray = false, const Vector<RID> &p_exclude = Vector<RID>());
 
 protected:
 	static void _bind_methods();
@@ -222,7 +222,7 @@ public:
 
 	enum ShapeType {
 		SHAPE_PLANE, ///< plane:"plane"
-		SHAPE_RAY, ///< float:"length"
+		SHAPE_SEPARATION_RAY, ///< float:"length"
 		SHAPE_SPHERE, ///< float:"radius"
 		SHAPE_BOX, ///< vec3:"extents"
 		SHAPE_CAPSULE, ///< dict( float:"radius", float:"height"):capsule
@@ -237,7 +237,7 @@ public:
 	RID shape_create(ShapeType p_shape);
 
 	virtual RID plane_shape_create() = 0;
-	virtual RID ray_shape_create() = 0;
+	virtual RID separation_ray_shape_create() = 0;
 	virtual RID sphere_shape_create() = 0;
 	virtual RID box_shape_create() = 0;
 	virtual RID capsule_shape_create() = 0;
@@ -300,7 +300,11 @@ public:
 		AREA_PARAM_GRAVITY_POINT_ATTENUATION,
 		AREA_PARAM_LINEAR_DAMP,
 		AREA_PARAM_ANGULAR_DAMP,
-		AREA_PARAM_PRIORITY
+		AREA_PARAM_PRIORITY,
+		AREA_PARAM_WIND_FORCE_MAGNITUDE,
+		AREA_PARAM_WIND_SOURCE,
+		AREA_PARAM_WIND_DIRECTION,
+		AREA_PARAM_WIND_ATTENUATION_FACTOR,
 	};
 
 	virtual RID area_create() = 0;
@@ -475,7 +479,7 @@ public:
 	virtual PhysicsDirectBodyState3D *body_get_direct_state(RID p_body) = 0;
 
 	struct MotionResult {
-		Vector3 motion;
+		Vector3 travel;
 		Vector3 remainder;
 
 		Vector3 collision_point;
@@ -489,23 +493,13 @@ public:
 		RID collider;
 		int collider_shape = 0;
 		Variant collider_metadata;
+
+		real_t get_angle(Vector3 p_up_direction) const {
+			return Math::acos(collision_normal.dot(p_up_direction));
+		}
 	};
 
-	virtual bool body_test_motion(RID p_body, const Transform3D &p_from, const Vector3 &p_motion, bool p_infinite_inertia, real_t p_margin = 0.001, MotionResult *r_result = nullptr, bool p_exclude_raycast_shapes = true) = 0;
-
-	struct SeparationResult {
-		real_t collision_depth;
-		Vector3 collision_point;
-		Vector3 collision_normal;
-		Vector3 collider_velocity;
-		int collision_local_shape;
-		ObjectID collider_id;
-		RID collider;
-		int collider_shape;
-		Variant collider_metadata;
-	};
-
-	virtual int body_test_ray_separation(RID p_body, const Transform3D &p_transform, bool p_infinite_inertia, Vector3 &r_recover_motion, SeparationResult *r_results, int p_result_max, real_t p_margin = 0.001) = 0;
+	virtual bool body_test_motion(RID p_body, const Transform3D &p_from, const Vector3 &p_motion, real_t p_margin = 0.001, MotionResult *r_result = nullptr, bool p_collide_separation_ray = false, const Set<RID> &p_exclude = Set<RID>()) = 0;
 
 	/* SOFT BODY */
 
@@ -768,8 +762,8 @@ protected:
 public:
 	PhysicsServer3D::MotionResult *get_result_ptr() const { return const_cast<PhysicsServer3D::MotionResult *>(&result); }
 
-	Vector3 get_motion() const;
-	Vector3 get_motion_remainder() const;
+	Vector3 get_travel() const;
+	Vector3 get_remainder() const;
 
 	Vector3 get_collision_point() const;
 	Vector3 get_collision_normal() const;

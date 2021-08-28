@@ -219,6 +219,7 @@ void editor_register_and_generate_icons(Ref<Theme> p_theme, bool p_dark_theme = 
 		exceptions.insert("DefaultProjectIcon");
 		exceptions.insert("GuiChecked");
 		exceptions.insert("GuiRadioChecked");
+		exceptions.insert("GuiIndeterminate");
 		exceptions.insert("GuiCloseCustomizable");
 		exceptions.insert("GuiGraphNodePort");
 		exceptions.insert("GuiResizer");
@@ -595,6 +596,11 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_stylebox("panel", "PanelContainer", style_menu);
 	theme->set_stylebox("MenuPanel", "EditorStyles", style_menu);
 
+	// CanvasItem Editor
+	Ref<StyleBoxFlat> style_canvas_editor_info = make_flat_stylebox(Color(0.0, 0.0, 0.0, 0.2));
+	style_canvas_editor_info->set_expand_margin_size_all(4 * EDSCALE);
+	theme->set_stylebox("CanvasItemInfoOverlay", "EditorStyles", style_canvas_editor_info);
+
 	// Script Editor
 	theme->set_stylebox("ScriptEditorPanel", "EditorStyles", make_empty_stylebox(default_margin_size, 0, default_margin_size, default_margin_size));
 	theme->set_stylebox("ScriptEditor", "EditorStyles", make_empty_stylebox(0, 0, 0, 0));
@@ -812,6 +818,7 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 
 	// Tree
 	theme->set_icon("checked", "Tree", theme->get_icon("GuiChecked", "EditorIcons"));
+	theme->set_icon("indeterminate", "Tree", theme->get_icon("GuiIndeterminate", "EditorIcons"));
 	theme->set_icon("unchecked", "Tree", theme->get_icon("GuiUnchecked", "EditorIcons"));
 	theme->set_icon("arrow", "Tree", theme->get_icon("GuiTreeArrowDown", "EditorIcons"));
 	theme->set_icon("arrow_collapsed", "Tree", theme->get_icon("GuiTreeArrowRight", "EditorIcons"));
@@ -1048,20 +1055,20 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_color("font_readonly_color", "LineEdit", font_readonly_color);
 	theme->set_color("caret_color", "TextEdit", font_color);
 	theme->set_color("selection_color", "TextEdit", selection_color);
+	theme->set_constant("line_spacing", "TextEdit", 4 * EDSCALE);
 
 	// CodeEdit
+	theme->set_font("font", "CodeEdit", theme->get_font("source", "EditorFonts"));
+	theme->set_font_size("font_size", "CodeEdit", theme->get_font_size("source_size", "EditorFonts"));
 	theme->set_stylebox("normal", "CodeEdit", style_widget);
 	theme->set_stylebox("focus", "CodeEdit", style_widget_hover);
 	theme->set_stylebox("read_only", "CodeEdit", style_widget_disabled);
-	theme->set_constant("side_margin", "TabContainer", 0);
 	theme->set_icon("tab", "CodeEdit", theme->get_icon("GuiTab", "EditorIcons"));
 	theme->set_icon("space", "CodeEdit", theme->get_icon("GuiSpace", "EditorIcons"));
 	theme->set_icon("folded", "CodeEdit", theme->get_icon("GuiTreeArrowRight", "EditorIcons"));
 	theme->set_icon("can_fold", "CodeEdit", theme->get_icon("GuiTreeArrowDown", "EditorIcons"));
 	theme->set_icon("executing_line", "CodeEdit", theme->get_icon("MainPlay", "EditorIcons"));
-	theme->set_color("font_color", "CodeEdit", font_color);
-	theme->set_color("caret_color", "CodeEdit", font_color);
-	theme->set_color("selection_color", "CodeEdit", selection_color);
+	theme->set_constant("line_spacing", "CodeEdit", EDITOR_DEF("text_editor/appearance/whitespace/line_spacing", 6));
 
 	// H/VSplitContainer
 	theme->set_stylebox("bg", "VSplitContainer", make_stylebox(theme->get_icon("GuiVsplitBg", "EditorIcons"), 1, 1, 1, 1));
@@ -1232,6 +1239,7 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_icon("reset", "GraphEdit", theme->get_icon("ZoomReset", "EditorIcons"));
 	theme->set_icon("snap", "GraphEdit", theme->get_icon("SnapGrid", "EditorIcons"));
 	theme->set_icon("minimap", "GraphEdit", theme->get_icon("GridMinimap", "EditorIcons"));
+	theme->set_icon("layout", "GraphEdit", theme->get_icon("GridLayout", "EditorIcons"));
 	theme->set_constant("bezier_len_pos", "GraphEdit", 80 * EDSCALE);
 	theme->set_constant("bezier_len_neg", "GraphEdit", 160 * EDSCALE);
 
@@ -1353,13 +1361,20 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_constant("label_width", "ColorPicker", 10 * EDSCALE);
 	theme->set_icon("screen_picker", "ColorPicker", theme->get_icon("ColorPick", "EditorIcons"));
 	theme->set_icon("add_preset", "ColorPicker", theme->get_icon("Add", "EditorIcons"));
-	theme->set_icon("preset_bg", "ColorPicker", theme->get_icon("GuiMiniCheckerboard", "EditorIcons"));
+	theme->set_icon("sample_bg", "ColorPicker", theme->get_icon("GuiMiniCheckerboard", "EditorIcons"));
 	theme->set_icon("overbright_indicator", "ColorPicker", theme->get_icon("OverbrightIndicator", "EditorIcons"));
 	theme->set_icon("bar_arrow", "ColorPicker", theme->get_icon("ColorPickerBarArrow", "EditorIcons"));
 	theme->set_icon("picker_cursor", "ColorPicker", theme->get_icon("PickerCursor", "EditorIcons"));
 
 	// ColorPickerButton
 	theme->set_icon("bg", "ColorPickerButton", theme->get_icon("GuiMiniCheckerboard", "EditorIcons"));
+
+	// ColorPresetButton
+	Ref<StyleBoxFlat> preset_sb = make_flat_stylebox(Color(1, 1, 1), 2, 2, 2, 2, 2);
+	preset_sb->set_anti_aliased(false);
+	theme->set_stylebox("preset_fg", "ColorPresetButton", preset_sb);
+	theme->set_icon("preset_bg", "ColorPresetButton", theme->get_icon("GuiMiniCheckerboard", "EditorIcons"));
+	theme->set_icon("overbright_indicator", "ColorPresetButton", theme->get_icon("OverbrightIndicator", "EditorIcons"));
 
 	// Information on 3D viewport
 	Ref<StyleBoxFlat> style_info_3d_viewport = style_default->duplicate();
@@ -1432,58 +1447,80 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	EditorSettings *setting = EditorSettings::get_singleton();
 	String text_editor_color_theme = setting->get("text_editor/theme/color_theme");
 	if (text_editor_color_theme == "Default") {
-		setting->set_initial_value("text_editor/highlighting/symbol_color", symbol_color, true);
-		setting->set_initial_value("text_editor/highlighting/keyword_color", keyword_color, true);
-		setting->set_initial_value("text_editor/highlighting/control_flow_keyword_color", control_flow_keyword_color, true);
-		setting->set_initial_value("text_editor/highlighting/base_type_color", basetype_color, true);
-		setting->set_initial_value("text_editor/highlighting/engine_type_color", type_color, true);
-		setting->set_initial_value("text_editor/highlighting/user_type_color", usertype_color, true);
-		setting->set_initial_value("text_editor/highlighting/comment_color", comment_color, true);
-		setting->set_initial_value("text_editor/highlighting/string_color", string_color, true);
-		setting->set_initial_value("text_editor/highlighting/background_color", te_background_color, true);
-		setting->set_initial_value("text_editor/highlighting/completion_background_color", completion_background_color, true);
-		setting->set_initial_value("text_editor/highlighting/completion_selected_color", completion_selected_color, true);
-		setting->set_initial_value("text_editor/highlighting/completion_existing_color", completion_existing_color, true);
-		setting->set_initial_value("text_editor/highlighting/completion_scroll_color", completion_scroll_color, true);
-		setting->set_initial_value("text_editor/highlighting/completion_font_color", completion_font_color, true);
-		setting->set_initial_value("text_editor/highlighting/text_color", text_color, true);
-		setting->set_initial_value("text_editor/highlighting/line_number_color", line_number_color, true);
-		setting->set_initial_value("text_editor/highlighting/safe_line_number_color", safe_line_number_color, true);
-		setting->set_initial_value("text_editor/highlighting/caret_color", caret_color, true);
-		setting->set_initial_value("text_editor/highlighting/caret_background_color", caret_background_color, true);
-		setting->set_initial_value("text_editor/highlighting/text_selected_color", text_selected_color, true);
-		setting->set_initial_value("text_editor/highlighting/selection_color", selection_color, true);
-		setting->set_initial_value("text_editor/highlighting/brace_mismatch_color", brace_mismatch_color, true);
-		setting->set_initial_value("text_editor/highlighting/current_line_color", current_line_color, true);
-		setting->set_initial_value("text_editor/highlighting/line_length_guideline_color", line_length_guideline_color, true);
-		setting->set_initial_value("text_editor/highlighting/word_highlighted_color", word_highlighted_color, true);
-		setting->set_initial_value("text_editor/highlighting/number_color", number_color, true);
-		setting->set_initial_value("text_editor/highlighting/function_color", function_color, true);
-		setting->set_initial_value("text_editor/highlighting/member_variable_color", member_variable_color, true);
-		setting->set_initial_value("text_editor/highlighting/mark_color", mark_color, true);
-		setting->set_initial_value("text_editor/highlighting/bookmark_color", bookmark_color, true);
-		setting->set_initial_value("text_editor/highlighting/breakpoint_color", breakpoint_color, true);
-		setting->set_initial_value("text_editor/highlighting/executing_line_color", executing_line_color, true);
-		setting->set_initial_value("text_editor/highlighting/code_folding_color", code_folding_color, true);
-		setting->set_initial_value("text_editor/highlighting/search_result_color", search_result_color, true);
-		setting->set_initial_value("text_editor/highlighting/search_result_border_color", search_result_border_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/symbol_color", symbol_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/keyword_color", keyword_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/control_flow_keyword_color", control_flow_keyword_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/base_type_color", basetype_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/engine_type_color", type_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/user_type_color", usertype_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/comment_color", comment_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/string_color", string_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/background_color", te_background_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/completion_background_color", completion_background_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/completion_selected_color", completion_selected_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/completion_existing_color", completion_existing_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/completion_scroll_color", completion_scroll_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/completion_font_color", completion_font_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/text_color", text_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/line_number_color", line_number_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/safe_line_number_color", safe_line_number_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/caret_color", caret_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/caret_background_color", caret_background_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/text_selected_color", text_selected_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/selection_color", selection_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/brace_mismatch_color", brace_mismatch_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/current_line_color", current_line_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/line_length_guideline_color", line_length_guideline_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/word_highlighted_color", word_highlighted_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/number_color", number_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/function_color", function_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/member_variable_color", member_variable_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/mark_color", mark_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/bookmark_color", bookmark_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/breakpoint_color", breakpoint_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/executing_line_color", executing_line_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/code_folding_color", code_folding_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/search_result_color", search_result_color, true);
+		setting->set_initial_value("text_editor/theme/highlighting/search_result_border_color", search_result_border_color, true);
 	} else if (text_editor_color_theme == "Godot 2") {
 		setting->load_text_editor_theme();
 	}
+
+	// Now theme is loaded, apply it to CodeEdit.
+	theme->set_color("background_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/background_color"));
+	theme->set_color("completion_background_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/completion_background_color"));
+	theme->set_color("completion_selected_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/completion_selected_color"));
+	theme->set_color("completion_existing_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/completion_existing_color"));
+	theme->set_color("completion_scroll_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/completion_scroll_color"));
+	theme->set_color("completion_font_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/completion_font_color"));
+	theme->set_color("font_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/text_color"));
+	theme->set_color("line_number_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/line_number_color"));
+	theme->set_color("caret_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/caret_color"));
+	theme->set_color("font_selected_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/text_selected_color"));
+	theme->set_color("selection_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/selection_color"));
+	theme->set_color("brace_mismatch_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/brace_mismatch_color"));
+	theme->set_color("current_line_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/current_line_color"));
+	theme->set_color("line_length_guideline_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/line_length_guideline_color"));
+	theme->set_color("word_highlighted_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/word_highlighted_color"));
+	theme->set_color("bookmark_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/bookmark_color"));
+	theme->set_color("breakpoint_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/breakpoint_color"));
+	theme->set_color("executing_line_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/executing_line_color"));
+	theme->set_color("code_folding_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/code_folding_color"));
+	theme->set_color("search_result_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/search_result_color"));
+	theme->set_color("search_result_border_color", "CodeEdit", EDITOR_GET("text_editor/theme/highlighting/search_result_border_color"));
 
 	return theme;
 }
 
 Ref<Theme> create_custom_theme(const Ref<Theme> p_theme) {
-	Ref<Theme> theme;
+	Ref<Theme> theme = create_editor_theme(p_theme);
 
-	const String custom_theme = EditorSettings::get_singleton()->get("interface/theme/custom_theme");
-	if (custom_theme != "") {
-		theme = ResourceLoader::load(custom_theme);
-	}
-
-	if (!theme.is_valid()) {
-		theme = create_editor_theme(p_theme);
+	const String custom_theme_path = EditorSettings::get_singleton()->get("interface/theme/custom_theme");
+	if (custom_theme_path != "") {
+		Ref<Theme> custom_theme = ResourceLoader::load(custom_theme_path);
+		if (custom_theme.is_valid()) {
+			theme->merge_with(custom_theme);
+		}
 	}
 
 	return theme;

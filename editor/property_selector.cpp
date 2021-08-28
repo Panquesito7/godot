@@ -48,7 +48,7 @@ void PropertySelector::_sbox_input(const Ref<InputEvent> &p_ie) {
 			case KEY_DOWN:
 			case KEY_PAGEUP:
 			case KEY_PAGEDOWN: {
-				search_options->call("_gui_input", k);
+				search_options->gui_input(k);
 				search_box->accept_event();
 
 				TreeItem *root = search_options->get_root();
@@ -67,6 +67,8 @@ void PropertySelector::_sbox_input(const Ref<InputEvent> &p_ie) {
 				current->select(0);
 
 			} break;
+			default:
+				break;
 		}
 	}
 }

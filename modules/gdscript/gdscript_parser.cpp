@@ -94,43 +94,8 @@ Variant::Type GDScriptParser::get_builtin_type(const StringName &p_type) {
 	return Variant::VARIANT_MAX;
 }
 
-// TODO: Move this to a central location (maybe core?).
-static HashMap<StringName, StringName> underscore_map;
-static const char *underscore_classes[] = {
-	"ClassDB",
-	"Directory",
-	"Engine",
-	"File",
-	"Geometry",
-	"GodotSharp",
-	"JSON",
-	"Marshalls",
-	"Mutex",
-	"OS",
-	"ResourceLoader",
-	"ResourceSaver",
-	"Semaphore",
-	"Thread",
-	"VisualScriptEditor",
-	nullptr,
-};
-StringName GDScriptParser::get_real_class_name(const StringName &p_source) {
-	if (underscore_map.is_empty()) {
-		const char **class_name = underscore_classes;
-		while (*class_name != nullptr) {
-			underscore_map[*class_name] = String("_") + *class_name;
-			class_name++;
-		}
-	}
-	if (underscore_map.has(p_source)) {
-		return underscore_map[p_source];
-	}
-	return p_source;
-}
-
 void GDScriptParser::cleanup() {
 	builtin_types.clear();
-	underscore_map.clear();
 }
 
 void GDScriptParser::get_annotation_list(List<MethodInfo> *r_annotations) const {
@@ -337,7 +302,7 @@ Error GDScriptParser::parse(const String &p_source_code, const String &p_script_
 	int tab_size = 4;
 #ifdef TOOLS_ENABLED
 	if (EditorSettings::get_singleton()) {
-		tab_size = EditorSettings::get_singleton()->get_setting("text_editor/indent/size");
+		tab_size = EditorSettings::get_singleton()->get_setting("text_editor/behavior/indent/size");
 	}
 #endif // TOOLS_ENABLED
 
@@ -1152,7 +1117,6 @@ GDScriptParser::EnumNode *GDScriptParser::parse_enum() {
 				}
 				item.custom_value = value;
 			}
-			item.rightmost_column = previous.rightmost_column;
 
 			item.index = enum_node->values.size();
 			enum_node->values.push_back(item);
@@ -2401,6 +2365,9 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_assignment(ExpressionNode 
 	}
 	assignment->assignee = p_previous_operand;
 	assignment->assigned_value = parse_expression(false);
+	if (assignment->assigned_value == nullptr) {
+		push_error(R"(Expected an expression after "=".)");
+	}
 
 #ifdef DEBUG_ENABLED
 	if (has_operator && source_variable != nullptr && source_variable->assignments == 0) {
@@ -2413,7 +2380,11 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_assignment(ExpressionNode 
 
 GDScriptParser::ExpressionNode *GDScriptParser::parse_await(ExpressionNode *p_previous_operand, bool p_can_assign) {
 	AwaitNode *await = alloc_node<AwaitNode>();
-	await->to_await = parse_precedence(PREC_AWAIT, false);
+	ExpressionNode *element = parse_precedence(PREC_AWAIT, false);
+	if (element == nullptr) {
+		push_error(R"(Expected signal or coroutine after "await".)");
+	}
+	await->to_await = element;
 
 	current_function->is_coroutine = true;
 
@@ -2480,7 +2451,9 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_dictionary(ExpressionNode 
 			switch (dictionary->style) {
 				case DictionaryNode::LUA_TABLE:
 					if (key != nullptr && key->type != Node::IDENTIFIER) {
-						push_error("Expected identifier as dictionary key.");
+						push_error("Expected identifier as LUA-style dictionary key.");
+						advance();
+						break;
 					}
 					if (!match(GDScriptTokenizer::Token::EQUAL)) {
 						if (match(GDScriptTokenizer::Token::COLON)) {
@@ -2984,7 +2957,7 @@ void GDScriptParser::get_class_doc_comment(int p_line, String &p_brief, String &
 
 			} else {
 				/* Syntax:
-				   @tutorial ( The Title Here )         :         http://the.url/
+				   @tutorial ( The Title Here )         :         https://the.url/
 				             ^ open           ^ close   ^ colon   ^ url
 				*/
 				int open_bracket_pos = begin_scan, close_bracket_pos = 0;
@@ -3361,10 +3334,10 @@ bool GDScriptParser::export_annotations(const AnnotationNode *p_annotation, Node
 				variable->export_info.hint_string = Variant::get_type_name(export_type.builtin_type);
 				break;
 			case GDScriptParser::DataType::NATIVE:
-				if (ClassDB::is_parent_class(get_real_class_name(export_type.native_type), "Resource")) {
+				if (ClassDB::is_parent_class(export_type.native_type, "Resource")) {
 					variable->export_info.type = Variant::OBJECT;
 					variable->export_info.hint = PROPERTY_HINT_RESOURCE_TYPE;
-					variable->export_info.hint_string = get_real_class_name(export_type.native_type);
+					variable->export_info.hint_string = export_type.native_type;
 				} else {
 					push_error(R"(Export type can only be built-in, a resource, or an enum.)", variable);
 					return false;

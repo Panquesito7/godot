@@ -33,9 +33,6 @@
 
 #include "scene/3d/node_3d.h"
 #include "scene/3d/velocity_tracker_3d.h"
-#include "scene/main/window.h"
-#include "scene/resources/camera_effects.h"
-#include "scene/resources/environment.h"
 
 class Camera3D : public Node3D {
 	GDCLASS(Camera3D, Node3D);
@@ -147,8 +144,8 @@ public:
 	void set_cull_mask(uint32_t p_layers);
 	uint32_t get_cull_mask() const;
 
-	void set_cull_mask_bit(int p_layer, bool p_enable);
-	bool get_cull_mask_bit(int p_layer) const;
+	void set_cull_mask_value(int p_layer_number, bool p_enable);
+	bool get_cull_mask_value(int p_layer_number) const;
 
 	virtual Vector<Plane> get_frustum() const;
 	bool is_position_in_frustum(const Vector3 &p_position) const;
@@ -224,8 +221,8 @@ public:
 	void set_collision_mask(uint32_t p_mask);
 	uint32_t get_collision_mask() const;
 
-	void set_collision_mask_bit(int p_bit, bool p_value);
-	bool get_collision_mask_bit(int p_bit) const;
+	void set_collision_mask_value(int p_layer_number, bool p_value);
+	bool get_collision_mask_value(int p_layer_number) const;
 
 	void add_exception_rid(const RID &p_rid);
 	void add_exception(const Object *p_object);

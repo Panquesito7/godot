@@ -30,10 +30,7 @@
 
 #include "gpu_particles_3d.h"
 
-#include "core/os/os.h"
 #include "scene/resources/particles_material.h"
-
-#include "servers/rendering_server.h"
 
 AABB GPUParticles3D::get_aabb() const {
 	return AABB();
@@ -86,12 +83,12 @@ void GPUParticles3D::set_pre_process_time(double p_time) {
 	RS::get_singleton()->particles_set_pre_process_time(particles, pre_process_time);
 }
 
-void GPUParticles3D::set_explosiveness_ratio(float p_ratio) {
+void GPUParticles3D::set_explosiveness_ratio(real_t p_ratio) {
 	explosiveness_ratio = p_ratio;
 	RS::get_singleton()->particles_set_explosiveness_ratio(particles, explosiveness_ratio);
 }
 
-void GPUParticles3D::set_randomness_ratio(float p_ratio) {
+void GPUParticles3D::set_randomness_ratio(real_t p_ratio) {
 	randomness_ratio = p_ratio;
 	RS::get_singleton()->particles_set_randomness_ratio(particles, randomness_ratio);
 }
@@ -123,7 +120,7 @@ void GPUParticles3D::set_speed_scale(double p_scale) {
 	RS::get_singleton()->particles_set_speed_scale(particles, p_scale);
 }
 
-void GPUParticles3D::set_collision_base_size(float p_size) {
+void GPUParticles3D::set_collision_base_size(real_t p_size) {
 	collision_base_size = p_size;
 	RS::get_singleton()->particles_set_collision_base_size(particles, p_size);
 }
@@ -148,11 +145,11 @@ double GPUParticles3D::get_pre_process_time() const {
 	return pre_process_time;
 }
 
-float GPUParticles3D::get_explosiveness_ratio() const {
+real_t GPUParticles3D::get_explosiveness_ratio() const {
 	return explosiveness_ratio;
 }
 
-float GPUParticles3D::get_randomness_ratio() const {
+real_t GPUParticles3D::get_randomness_ratio() const {
 	return randomness_ratio;
 }
 
@@ -172,7 +169,7 @@ double GPUParticles3D::get_speed_scale() const {
 	return speed_scale;
 }
 
-float GPUParticles3D::get_collision_base_size() const {
+real_t GPUParticles3D::get_collision_base_size() const {
 	return collision_base_size;
 }
 
@@ -186,7 +183,8 @@ void GPUParticles3D::set_trail_enabled(bool p_enabled) {
 	RS::get_singleton()->particles_set_trails(particles, trail_enabled, trail_length);
 	update_configuration_warnings();
 }
-void GPUParticles3D::set_trail_length(float p_seconds) {
+
+void GPUParticles3D::set_trail_length(double p_seconds) {
 	ERR_FAIL_COND(p_seconds < 0.001);
 	trail_length = p_seconds;
 	RS::get_singleton()->particles_set_trails(particles, trail_enabled, trail_length);
@@ -195,7 +193,8 @@ void GPUParticles3D::set_trail_length(float p_seconds) {
 bool GPUParticles3D::is_trail_enabled() const {
 	return trail_enabled;
 }
-float GPUParticles3D::get_trail_length() const {
+
+double GPUParticles3D::get_trail_length() const {
 	return trail_length;
 }
 
@@ -313,7 +312,7 @@ TypedArray<String> GPUParticles3D::get_configuration_warnings() const {
 	} else {
 		const ParticlesMaterial *process = Object::cast_to<ParticlesMaterial>(process_material.ptr());
 		if (!anim_material_found && process &&
-				(process->get_param(ParticlesMaterial::PARAM_ANIM_SPEED) != 0.0 || process->get_param(ParticlesMaterial::PARAM_ANIM_OFFSET) != 0.0 ||
+				(process->get_param_max(ParticlesMaterial::PARAM_ANIM_SPEED) != 0.0 || process->get_param_max(ParticlesMaterial::PARAM_ANIM_OFFSET) != 0.0 ||
 						process->get_param_texture(ParticlesMaterial::PARAM_ANIM_SPEED).is_valid() || process->get_param_texture(ParticlesMaterial::PARAM_ANIM_OFFSET).is_valid())) {
 			warnings.push_back(TTR("Particles animation requires the usage of a BaseMaterial3D whose Billboard Mode is set to \"Particle Billboard\"."));
 		}
@@ -485,6 +484,7 @@ void GPUParticles3D::set_skin(const Ref<Skin> &p_skin) {
 	skin = p_skin;
 	_skinning_changed();
 }
+
 Ref<Skin> GPUParticles3D::get_skin() const {
 	return skin;
 }

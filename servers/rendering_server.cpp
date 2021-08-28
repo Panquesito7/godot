@@ -2138,6 +2138,7 @@ void RenderingServer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("viewport_create"), &RenderingServer::viewport_create);
 	ClassDB::bind_method(D_METHOD("viewport_set_use_xr", "viewport", "use_xr"), &RenderingServer::viewport_set_use_xr);
+	ClassDB::bind_method(D_METHOD("viewport_set_scale_3d", "viewport", "scale"), &RenderingServer::viewport_set_scale_3d);
 	ClassDB::bind_method(D_METHOD("viewport_set_size", "viewport", "width", "height"), &RenderingServer::viewport_set_size);
 	ClassDB::bind_method(D_METHOD("viewport_set_active", "viewport", "active"), &RenderingServer::viewport_set_active);
 	ClassDB::bind_method(D_METHOD("viewport_set_parent_viewport", "viewport", "parent_viewport"), &RenderingServer::viewport_set_parent_viewport);
@@ -2254,6 +2255,12 @@ void RenderingServer::_bind_methods() {
 	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_CLUSTER_DECALS);
 	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_CLUSTER_REFLECTION_PROBES);
 	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_OCCLUDERS);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_SCALE_3D_DISABLED);
+	BIND_ENUM_CONSTANT(VIEWPORT_SCALE_3D_75_PERCENT);
+	BIND_ENUM_CONSTANT(VIEWPORT_SCALE_3D_50_PERCENT);
+	BIND_ENUM_CONSTANT(VIEWPORT_SCALE_3D_33_PERCENT);
+	BIND_ENUM_CONSTANT(VIEWPORT_SCALE_3D_25_PERCENT);
 
 	/* SKY API */
 
@@ -2795,6 +2802,12 @@ RenderingServer::RenderingServer() {
 					"rendering/vulkan/rendering/back_end",
 					PROPERTY_HINT_ENUM, "Forward Clustered (Supports Desktop Only),Forward Mobile (Supports Desktop and Mobile)"));
 
+	GLOBAL_DEF("rendering/3d/viewport/scale", 0);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/3d/viewport/scale",
+			PropertyInfo(Variant::INT,
+					"rendering/3d/viewport/scale",
+					PROPERTY_HINT_ENUM, "Disabled,75%,50%,33%,25%"));
+
 	GLOBAL_DEF("rendering/shader_compiler/shader_cache/enabled", true);
 	GLOBAL_DEF("rendering/shader_compiler/shader_cache/compress", true);
 	GLOBAL_DEF("rendering/shader_compiler/shader_cache/use_zstd_compression", true);
@@ -2826,13 +2839,13 @@ RenderingServer::RenderingServer() {
 	GLOBAL_DEF("rendering/driver/depth_prepass/enable", true);
 	GLOBAL_DEF("rendering/driver/depth_prepass/disable_for_vendors", "PowerVR,Mali,Adreno,Apple");
 
-	GLOBAL_DEF("rendering/textures/default_filters/use_nearest_mipmap_filter", false);
-	GLOBAL_DEF("rendering/textures/default_filters/anisotropic_filtering_level", 2);
-	ProjectSettings::get_singleton()->set_custom_property_info("rendering/textures/default_filters/anisotropic_filtering_level", PropertyInfo(Variant::INT, "rendering/textures/default_filters/anisotropic_filtering_level", PROPERTY_HINT_ENUM, "Disabled (Fastest),2x (Faster),4x (Fast),8x (Average),16x (Slow)"));
+	GLOBAL_DEF_RST("rendering/textures/default_filters/use_nearest_mipmap_filter", false);
+	GLOBAL_DEF_RST("rendering/textures/default_filters/anisotropic_filtering_level", 2);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/textures/default_filters/anisotropic_filtering_level", PropertyInfo(Variant::INT, "rendering/textures/default_filters/anisotropic_filtering_level", PROPERTY_HINT_ENUM, String::utf8("Disabled (Fastest),2× (Faster),4× (Fast),8× (Average),16× (Slow)")));
 
 	GLOBAL_DEF("rendering/camera/depth_of_field/depth_of_field_bokeh_shape", 1);
-	ProjectSettings::get_singleton()->set_custom_property_info("rendering/camera/depth_of_field/depth_of_field_bokeh_shape", PropertyInfo(Variant::INT, "rendering/camera/depth_of_field/depth_of_field_bokeh_shape", PROPERTY_HINT_ENUM, "Box (Fast),Hexagon (Average),Circle (Slow)"));
-	GLOBAL_DEF("rendering/camera/depth_of_field/depth_of_field_bokeh_quality", 2);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/camera/depth_of_field/depth_of_field_bokeh_shape", PropertyInfo(Variant::INT, "rendering/camera/depth_of_field/depth_of_field_bokeh_shape", PROPERTY_HINT_ENUM, "Box (Fast),Hexagon (Average),Circle (Slowest)"));
+	GLOBAL_DEF("rendering/camera/depth_of_field/depth_of_field_bokeh_quality", 1);
 	ProjectSettings::get_singleton()->set_custom_property_info("rendering/camera/depth_of_field/depth_of_field_bokeh_quality", PropertyInfo(Variant::INT, "rendering/camera/depth_of_field/depth_of_field_bokeh_quality", PROPERTY_HINT_ENUM, "Very Low (Fastest),Low (Fast),Medium (Average),High (Slow)"));
 	GLOBAL_DEF("rendering/camera/depth_of_field/depth_of_field_use_jitter", false);
 

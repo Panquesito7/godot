@@ -30,9 +30,7 @@
 
 #include "gpu_particles_2d.h"
 
-#include "core/os/os.h"
 #include "scene/resources/particles_material.h"
-#include "scene/scene_string_names.h"
 
 #ifdef TOOLS_ENABLED
 #include "core/config/engine.h"
@@ -81,12 +79,12 @@ void GPUParticles2D::set_pre_process_time(double p_time) {
 	RS::get_singleton()->particles_set_pre_process_time(particles, pre_process_time);
 }
 
-void GPUParticles2D::set_explosiveness_ratio(float p_ratio) {
+void GPUParticles2D::set_explosiveness_ratio(real_t p_ratio) {
 	explosiveness_ratio = p_ratio;
 	RS::get_singleton()->particles_set_explosiveness_ratio(particles, explosiveness_ratio);
 }
 
-void GPUParticles2D::set_randomness_ratio(float p_ratio) {
+void GPUParticles2D::set_randomness_ratio(real_t p_ratio) {
 	randomness_ratio = p_ratio;
 	RS::get_singleton()->particles_set_randomness_ratio(particles, randomness_ratio);
 }
@@ -176,7 +174,7 @@ bool GPUParticles2D::is_trail_enabled() const {
 	return trail_enabled;
 }
 
-real_t GPUParticles2D::get_trail_length() const {
+double GPUParticles2D::get_trail_length() const {
 	return trail_length;
 }
 
@@ -297,7 +295,7 @@ TypedArray<String> GPUParticles2D::get_configuration_warnings() const {
 		if (get_material().is_null() || (mat && !mat->get_particles_animation())) {
 			const ParticlesMaterial *process = Object::cast_to<ParticlesMaterial>(process_material.ptr());
 			if (process &&
-					(process->get_param(ParticlesMaterial::PARAM_ANIM_SPEED) != 0.0 || process->get_param(ParticlesMaterial::PARAM_ANIM_OFFSET) != 0.0 ||
+					(process->get_param_max(ParticlesMaterial::PARAM_ANIM_SPEED) != 0.0 || process->get_param_max(ParticlesMaterial::PARAM_ANIM_OFFSET) != 0.0 ||
 							process->get_param_texture(ParticlesMaterial::PARAM_ANIM_SPEED).is_valid() || process->get_param_texture(ParticlesMaterial::PARAM_ANIM_OFFSET).is_valid())) {
 				warnings.push_back(TTR("Particles2D animation requires the usage of a CanvasItemMaterial with \"Particles Animation\" enabled."));
 			}
@@ -355,19 +353,19 @@ void GPUParticles2D::_notification(int p_what) {
 			PackedInt32Array indices;
 
 			int total_segments = trail_sections * trail_section_subdivisions;
-			float depth = size.height * trail_sections;
+			real_t depth = size.height * trail_sections;
 
 			for (int j = 0; j <= total_segments; j++) {
-				float v = j;
+				real_t v = j;
 				v /= total_segments;
 
-				float y = depth * v;
+				real_t y = depth * v;
 				y = (depth * 0.5) - y;
 
 				int bone = j / trail_section_subdivisions;
-				float blend = 1.0 - float(j % trail_section_subdivisions) / float(trail_section_subdivisions);
+				real_t blend = 1.0 - real_t(j % trail_section_subdivisions) / real_t(trail_section_subdivisions);
 
-				float s = size.width;
+				real_t s = size.width;
 
 				points.push_back(Vector2(-s * 0.5, 0));
 				points.push_back(Vector2(+s * 0.5, 0));
@@ -413,7 +411,7 @@ void GPUParticles2D::_notification(int p_what) {
 			for (int i = 0; i <= trail_sections; i++) {
 				Transform3D xform;
 				/*
-				xform.origin.y = depth / 2.0 - size.height * float(i);
+				xform.origin.y = depth / 2.0 - size.height * real_t(i);
 				xform.origin.y = -xform.origin.y; //bind is an inverse transform, so negate y */
 				xforms.push_back(xform);
 			}

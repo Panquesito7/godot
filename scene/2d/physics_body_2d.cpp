@@ -30,17 +30,12 @@
 
 #include "physics_body_2d.h"
 
-#include "core/config/engine.h"
 #include "core/core_string_names.h"
-#include "core/math/math_funcs.h"
-#include "core/object/class_db.h"
-#include "core/templates/list.h"
-#include "core/templates/rid.h"
 #include "scene/scene_string_names.h"
 
 void PhysicsBody2D::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("move_and_collide", "rel_vec", "infinite_inertia", "exclude_raycast_shapes", "test_only", "safe_margin"), &PhysicsBody2D::_move, DEFVAL(true), DEFVAL(true), DEFVAL(false), DEFVAL(0.08));
-	ClassDB::bind_method(D_METHOD("test_move", "from", "rel_vec", "infinite_inertia", "exclude_raycast_shapes", "collision", "safe_margin"), &PhysicsBody2D::test_move, DEFVAL(true), DEFVAL(true), DEFVAL(Variant()), DEFVAL(0.08));
+	ClassDB::bind_method(D_METHOD("move_and_collide", "rel_vec", "test_only", "safe_margin"), &PhysicsBody2D::_move, DEFVAL(false), DEFVAL(0.08));
+	ClassDB::bind_method(D_METHOD("test_move", "from", "rel_vec", "collision", "safe_margin"), &PhysicsBody2D::test_move, DEFVAL(Variant()), DEFVAL(0.08));
 
 	ClassDB::bind_method(D_METHOD("get_collision_exceptions"), &PhysicsBody2D::get_collision_exceptions);
 	ClassDB::bind_method(D_METHOD("add_collision_exception_with", "body"), &PhysicsBody2D::add_collision_exception_with);
@@ -59,29 +54,28 @@ PhysicsBody2D::~PhysicsBody2D() {
 	}
 }
 
-Ref<KinematicCollision2D> PhysicsBody2D::_move(const Vector2 &p_motion, bool p_infinite_inertia, bool p_exclude_raycast_shapes, bool p_test_only, real_t p_margin) {
+Ref<KinematicCollision2D> PhysicsBody2D::_move(const Vector2 &p_motion, bool p_test_only, real_t p_margin) {
 	PhysicsServer2D::MotionResult result;
 
-	if (move_and_collide(p_motion, p_infinite_inertia, result, p_margin, p_exclude_raycast_shapes, p_test_only)) {
+	if (move_and_collide(p_motion, result, p_margin, p_test_only)) {
 		if (motion_cache.is_null()) {
 			motion_cache.instantiate();
 			motion_cache->owner = this;
 		}
 
 		motion_cache->result = result;
-
 		return motion_cache;
 	}
 
 	return Ref<KinematicCollision2D>();
 }
 
-bool PhysicsBody2D::move_and_collide(const Vector2 &p_motion, bool p_infinite_inertia, PhysicsServer2D::MotionResult &r_result, real_t p_margin, bool p_exclude_raycast_shapes, bool p_test_only, bool p_cancel_sliding, const Set<RID> &p_exclude) {
+bool PhysicsBody2D::move_and_collide(const Vector2 &p_motion, PhysicsServer2D::MotionResult &r_result, real_t p_margin, bool p_test_only, bool p_cancel_sliding, bool p_collide_separation_ray, const Set<RID> &p_exclude) {
 	if (is_only_update_transform_changes_enabled()) {
 		ERR_PRINT("Move functions do not work together with 'sync to physics' option. Please read the documentation.");
 	}
 	Transform2D gt = get_global_transform();
-	bool colliding = PhysicsServer2D::get_singleton()->body_test_motion(get_rid(), gt, p_motion, p_infinite_inertia, p_margin, &r_result, p_exclude_raycast_shapes, p_exclude);
+	bool colliding = PhysicsServer2D::get_singleton()->body_test_motion(get_rid(), gt, p_motion, p_margin, &r_result, p_collide_separation_ray, p_exclude);
 
 	// Restore direction of motion to be along original motion,
 	// in order to avoid sliding due to recovery,
@@ -108,28 +102,28 @@ bool PhysicsBody2D::move_and_collide(const Vector2 &p_motion, bool p_infinite_in
 			}
 
 			// Check depth of recovery.
-			real_t projected_length = r_result.motion.dot(motion_normal);
-			Vector2 recovery = r_result.motion - motion_normal * projected_length;
+			real_t projected_length = r_result.travel.dot(motion_normal);
+			Vector2 recovery = r_result.travel - motion_normal * projected_length;
 			real_t recovery_length = recovery.length();
 			// Fixes cases where canceling slide causes the motion to go too deep into the ground,
 			// because we're only taking rest information into account and not general recovery.
 			if (recovery_length < (real_t)p_margin + precision) {
 				// Apply adjustment to motion.
-				r_result.motion = motion_normal * projected_length;
-				r_result.remainder = p_motion - r_result.motion;
+				r_result.travel = motion_normal * projected_length;
+				r_result.remainder = p_motion - r_result.travel;
 			}
 		}
 	}
 
 	if (!p_test_only) {
-		gt.elements[2] += r_result.motion;
+		gt.elements[2] += r_result.travel;
 		set_global_transform(gt);
 	}
 
 	return colliding;
 }
 
-bool PhysicsBody2D::test_move(const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, bool p_exclude_raycast_shapes, const Ref<KinematicCollision2D> &r_collision, real_t p_margin) {
+bool PhysicsBody2D::test_move(const Transform2D &p_from, const Vector2 &p_motion, const Ref<KinematicCollision2D> &r_collision, real_t p_margin) {
 	ERR_FAIL_COND_V(!is_inside_tree(), false);
 
 	PhysicsServer2D::MotionResult *r = nullptr;
@@ -138,7 +132,7 @@ bool PhysicsBody2D::test_move(const Transform2D &p_from, const Vector2 &p_motion
 		r = const_cast<PhysicsServer2D::MotionResult *>(&r_collision->result);
 	}
 
-	return PhysicsServer2D::get_singleton()->body_test_motion(get_rid(), p_from, p_motion, p_infinite_inertia, p_margin, r, p_exclude_raycast_shapes);
+	return PhysicsServer2D::get_singleton()->body_test_motion(get_rid(), p_from, p_motion, p_margin, r);
 }
 
 TypedArray<PhysicsBody2D> PhysicsBody2D::get_collision_exceptions() {
@@ -535,9 +529,9 @@ void RigidBody2D::_direct_state_changed(Object *p_state) {
 		sleeping = state->is_sleeping();
 		emit_signal(SceneStringNames::get_singleton()->sleeping_state_changed);
 	}
-	if (get_script_instance()) {
-		get_script_instance()->call("_integrate_forces", state);
-	}
+
+	GDVIRTUAL_CALL(_integrate_forces, state);
+
 	set_block_transform_notify(false); // want it back
 
 	if (contact_monitor) {
@@ -984,7 +978,7 @@ void RigidBody2D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_colliding_bodies"), &RigidBody2D::get_colliding_bodies);
 
-	BIND_VMETHOD(MethodInfo("_integrate_forces", PropertyInfo(Variant::OBJECT, "state", PROPERTY_HINT_RESOURCE_TYPE, "PhysicsDirectBodyState2D")));
+	GDVIRTUAL_BIND(_integrate_forces, "state");
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "mode", PROPERTY_HINT_ENUM, "Dynamic,Static,DynamicLocked,Kinematic"), "set_mode", "get_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "mass", PROPERTY_HINT_RANGE, "0.01,65535,0.01,exp"), "set_mass", "get_mass");
@@ -1046,201 +1040,316 @@ void RigidBody2D::_reload_physics_characteristics() {
 
 //////////////////////////
 
-//so, if you pass 45 as limit, avoid numerical precision errors when angle is 45.
+// So, if you pass 45 as limit, avoid numerical precision errors when angle is 45.
 #define FLOOR_ANGLE_THRESHOLD 0.01
 
-void CharacterBody2D::move_and_slide() {
-	Vector2 body_velocity_normal = linear_velocity.normalized();
-	bool was_on_floor = on_floor;
-
-	// Hack in order to work with calling from _process as well as from _physics_process; calling from thread is risky
+bool CharacterBody2D::move_and_slide() {
+	// Hack in order to work with calling from _process as well as from _physics_process; calling from thread is risky.
 	float delta = Engine::get_singleton()->is_in_physics_frame() ? get_physics_process_delta_time() : get_process_delta_time();
 
-	Vector2 current_floor_velocity = floor_velocity;
+	Vector2 current_platform_velocity = platform_velocity;
 
-	if ((on_floor || on_wall) && on_floor_body.is_valid()) {
-		//this approach makes sure there is less delay between the actual body velocity and the one we saved
-		PhysicsDirectBodyState2D *bs = PhysicsServer2D::get_singleton()->body_get_direct_state(on_floor_body);
-		if (bs) {
-			Transform2D gt = get_global_transform();
-			Vector2 local_position = gt.elements[2] - bs->get_transform().elements[2];
-			current_floor_velocity = bs->get_velocity_at_local_position(local_position);
+	if ((on_floor || on_wall) && platform_rid.is_valid()) {
+		bool excluded = (moving_platform_ignore_layers & platform_layer) != 0;
+		if (!excluded) {
+			// This approach makes sure there is less delay between the actual body velocity and the one we saved.
+			PhysicsDirectBodyState2D *bs = PhysicsServer2D::get_singleton()->body_get_direct_state(platform_rid);
+			if (bs) {
+				Transform2D gt = get_global_transform();
+				Vector2 local_position = gt.elements[2] - bs->get_transform().elements[2];
+				current_platform_velocity = bs->get_velocity_at_local_position(local_position);
+			}
+		} else {
+			current_platform_velocity = Vector2();
 		}
 	}
 
 	motion_results.clear();
+
+	bool was_on_floor = on_floor;
 	on_floor = false;
 	on_ceiling = false;
 	on_wall = false;
-	floor_normal = Vector2();
-	floor_velocity = Vector2();
 
-	if (current_floor_velocity != Vector2()) {
+	if (!current_platform_velocity.is_equal_approx(Vector2())) {
 		PhysicsServer2D::MotionResult floor_result;
 		Set<RID> exclude;
-		exclude.insert(on_floor_body);
-		if (move_and_collide(current_floor_velocity * delta, infinite_inertia, floor_result, true, false, false, false, exclude)) {
+		exclude.insert(platform_rid);
+		if (move_and_collide(current_platform_velocity * delta, floor_result, margin, false, false, false, exclude)) {
 			motion_results.push_back(floor_result);
 			_set_collision_direction(floor_result);
 		}
 	}
 
-	on_floor_body = RID();
-	Vector2 motion = linear_velocity * delta;
-
-	// No sliding on first attempt to keep floor motion stable when possible,
-	// when stop on slope is enabled.
-	bool sliding_enabled = !stop_on_slope;
-
-	for (int iteration = 0; iteration < max_slides; ++iteration) {
-		PhysicsServer2D::MotionResult result;
-		bool found_collision = false;
-
-		for (int i = 0; i < 2; ++i) {
-			bool collided;
-			if (i == 0) { //collide
-				collided = move_and_collide(motion, infinite_inertia, result, margin, true, false, !sliding_enabled);
-				if (!collided) {
-					motion = Vector2(); //clear because no collision happened and motion completed
-				}
-			} else { //separate raycasts (if any)
-				collided = separate_raycast_shapes(result);
-				if (collided) {
-					result.remainder = motion; //keep
-					result.motion = Vector2();
-				}
-			}
-
-			if (collided) {
-				found_collision = true;
-
-				motion_results.push_back(result);
-				_set_collision_direction(result);
-
-				if (on_floor && stop_on_slope) {
-					if ((body_velocity_normal + up_direction).length() < 0.01) {
-						Transform2D gt = get_global_transform();
-						if (result.motion.length() > margin) {
-							gt.elements[2] -= result.motion.slide(up_direction);
-						} else {
-							gt.elements[2] -= result.motion;
-						}
-						set_global_transform(gt);
-						linear_velocity = Vector2();
-						return;
-					}
-				}
-
-				if (sliding_enabled || !on_floor) {
-					motion = result.remainder.slide(result.collision_normal);
-					linear_velocity = linear_velocity.slide(result.collision_normal);
-				} else {
-					motion = result.remainder;
-				}
-			}
-
-			sliding_enabled = true;
-		}
-
-		if (!found_collision || motion == Vector2()) {
-			break;
-		}
+	if (motion_mode == MOTION_MODE_GROUNDED) {
+		_move_and_slide_grounded(delta, was_on_floor, current_platform_velocity);
+	} else {
+		_move_and_slide_free(delta);
 	}
 
 	if (!on_floor && !on_wall) {
 		// Add last platform velocity when just left a moving platform.
-		linear_velocity += current_floor_velocity;
+		linear_velocity += current_platform_velocity;
 	}
 
-	if (!was_on_floor || snap == Vector2()) {
-		return;
-	}
+	return motion_results.size() > 0;
+}
 
-	// Apply snap.
-	Transform2D gt = get_global_transform();
-	PhysicsServer2D::MotionResult result;
-	if (move_and_collide(snap, infinite_inertia, result, margin, false, true, false)) {
-		bool apply = true;
-		if (up_direction != Vector2()) {
-			if (Math::acos(result.collision_normal.dot(up_direction)) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) {
-				on_floor = true;
-				floor_normal = result.collision_normal;
-				on_floor_body = result.collider;
-				floor_velocity = result.collider_velocity;
-				if (stop_on_slope) {
-					// move and collide may stray the object a bit because of pre un-stucking,
-					// so only ensure that motion happens on floor direction in this case.
-					if (result.motion.length() > margin) {
-						result.motion = up_direction * up_direction.dot(result.motion);
+void CharacterBody2D::_move_and_slide_grounded(real_t p_delta, bool p_was_on_floor, const Vector2 &p_prev_platform_velocity) {
+	Vector2 motion = linear_velocity * p_delta;
+	Vector2 motion_slide_up = motion.slide(up_direction);
+
+	Vector2 prev_floor_normal = floor_normal;
+	RID prev_platform_rid = platform_rid;
+	int prev_platform_layer = platform_layer;
+
+	platform_rid = RID();
+	floor_normal = Vector2();
+	platform_velocity = Vector2();
+
+	// No sliding on first attempt to keep floor motion stable when possible,
+	// When stop on slope is enabled or when there is no up direction.
+	bool sliding_enabled = !floor_stop_on_slope;
+	// Constant speed can be applied only the first time sliding is enabled.
+	bool can_apply_constant_speed = sliding_enabled;
+	bool first_slide = true;
+	bool vel_dir_facing_up = linear_velocity.dot(up_direction) > 0;
+	Vector2 last_travel;
+
+	for (int iteration = 0; iteration < max_slides; ++iteration) {
+		PhysicsServer2D::MotionResult result;
+
+		Vector2 prev_position = get_global_transform().elements[2];
+
+		bool collided = move_and_collide(motion, result, margin, false, !sliding_enabled);
+
+		if (collided) {
+			motion_results.push_back(result);
+			_set_collision_direction(result);
+
+			if (on_floor && floor_stop_on_slope && (linear_velocity.normalized() + up_direction).length() < 0.01) {
+				Transform2D gt = get_global_transform();
+				if (result.travel.length() > margin) {
+					gt.elements[2] -= result.travel.slide(up_direction);
+				} else {
+					gt.elements[2] -= result.travel;
+				}
+				set_global_transform(gt);
+				linear_velocity = Vector2();
+				motion = Vector2();
+				break;
+			}
+
+			if (result.remainder.is_equal_approx(Vector2())) {
+				motion = Vector2();
+				break;
+			}
+
+			// Move on floor only checks.
+			if (floor_block_on_wall && on_wall && motion_slide_up.dot(result.collision_normal) <= 0) {
+				// Avoid to move forward on a wall if floor_block_on_wall is true.
+				if (p_was_on_floor && !on_floor && !vel_dir_facing_up) {
+					// If the movement is large the body can be prevented from reaching the walls.
+					if (result.travel.length() <= margin) {
+						// Cancels the motion.
+						Transform2D gt = get_global_transform();
+						gt.elements[2] -= result.travel;
+						set_global_transform(gt);
+					}
+					on_floor = true;
+					platform_rid = prev_platform_rid;
+					platform_layer = prev_platform_layer;
+					platform_velocity = p_prev_platform_velocity;
+					floor_normal = prev_floor_normal;
+					linear_velocity = Vector2();
+					motion = Vector2();
+					break;
+				}
+				// Prevents the body from being able to climb a slope when it moves forward against the wall.
+				else if (!on_floor) {
+					motion = up_direction * up_direction.dot(result.remainder);
+					motion = motion.slide(result.collision_normal);
+				} else {
+					motion = result.remainder;
+				}
+			}
+			// Constant Speed when the slope is upward.
+			else if (floor_constant_speed && is_on_floor_only() && can_apply_constant_speed && p_was_on_floor && motion.dot(result.collision_normal) < 0) {
+				can_apply_constant_speed = false;
+				Vector2 motion_slide_norm = result.remainder.slide(result.collision_normal).normalized();
+				motion = motion_slide_norm * (motion_slide_up.length() - result.travel.slide(up_direction).length() - last_travel.slide(up_direction).length());
+			}
+			// Regular sliding, the last part of the test handle the case when you don't want to slide on the ceiling.
+			else if ((sliding_enabled || !on_floor) && (!on_ceiling || slide_on_ceiling || !vel_dir_facing_up)) {
+				Vector2 slide_motion = result.remainder.slide(result.collision_normal);
+				if (slide_motion.dot(linear_velocity) > 0.0) {
+					motion = slide_motion;
+				} else {
+					motion = Vector2();
+				}
+				if (slide_on_ceiling && on_ceiling) {
+					// Apply slide only in the direction of the input motion, otherwise just stop to avoid jittering when moving against a wall.
+					if (vel_dir_facing_up) {
+						linear_velocity = linear_velocity.slide(result.collision_normal);
 					} else {
-						result.motion = Vector2();
+						// Avoid acceleration in slope when falling.
+						linear_velocity = up_direction * up_direction.dot(linear_velocity);
 					}
 				}
+			}
+			// No sliding on first attempt to keep floor motion stable when possible.
+			else {
+				motion = result.remainder;
+				if (on_ceiling && !slide_on_ceiling && vel_dir_facing_up) {
+					linear_velocity = linear_velocity.slide(up_direction);
+					motion = motion.slide(up_direction);
+				}
+			}
+
+			last_travel = result.travel;
+		}
+		// When you move forward in a downward slope you don’t collide because you will be in the air.
+		// This test ensures that constant speed is applied, only if the player is still on the ground after the snap is applied.
+		else if (floor_constant_speed && first_slide && _on_floor_if_snapped(p_was_on_floor, vel_dir_facing_up)) {
+			can_apply_constant_speed = false;
+			sliding_enabled = true;
+			Transform2D gt = get_global_transform();
+			gt.elements[2] = prev_position;
+			set_global_transform(gt);
+
+			Vector2 motion_slide_norm = motion.slide(prev_floor_normal).normalized();
+			motion = motion_slide_norm * (motion_slide_up.length());
+			collided = true;
+		}
+
+		can_apply_constant_speed = !can_apply_constant_speed && !sliding_enabled;
+		sliding_enabled = true;
+		first_slide = false;
+
+		if (!collided || motion.is_equal_approx(Vector2())) {
+			break;
+		}
+	}
+
+	_snap_on_floor(p_was_on_floor, vel_dir_facing_up);
+
+	// Reset the gravity accumulation when touching the ground.
+	if (on_floor && !vel_dir_facing_up) {
+		linear_velocity = linear_velocity.slide(up_direction);
+	}
+}
+
+void CharacterBody2D::_move_and_slide_free(real_t p_delta) {
+	Vector2 motion = linear_velocity * p_delta;
+
+	platform_rid = RID();
+	floor_normal = Vector2();
+	platform_velocity = Vector2();
+
+	bool first_slide = true;
+	for (int iteration = 0; iteration < max_slides; ++iteration) {
+		PhysicsServer2D::MotionResult result;
+
+		bool collided = move_and_collide(motion, result, margin, false, false);
+
+		if (collided) {
+			motion_results.push_back(result);
+			_set_collision_direction(result);
+
+			if (free_mode_min_slide_angle != 0 && result.get_angle(-linear_velocity.normalized()) < free_mode_min_slide_angle + FLOOR_ANGLE_THRESHOLD) {
+				motion = Vector2();
+			} else if (first_slide) {
+				Vector2 motion_slide_norm = result.remainder.slide(result.collision_normal).normalized();
+				motion = motion_slide_norm * (motion.length() - result.travel.length());
 			} else {
-				apply = false;
+				motion = result.remainder.slide(result.collision_normal);
+			}
+
+			if (motion.dot(linear_velocity) <= 0.0) {
+				motion = Vector2();
 			}
 		}
 
+		first_slide = false;
+
+		if (!collided || motion.is_equal_approx(Vector2())) {
+			break;
+		}
+	}
+}
+
+void CharacterBody2D::_snap_on_floor(bool was_on_floor, bool vel_dir_facing_up) {
+	if (Math::is_equal_approx(floor_snap_length, 0) || on_floor || !was_on_floor || vel_dir_facing_up) {
+		return;
+	}
+
+	Transform2D gt = get_global_transform();
+	PhysicsServer2D::MotionResult result;
+	if (move_and_collide(up_direction * -floor_snap_length, result, margin, true, false, true)) {
+		bool apply = true;
+		if (result.get_angle(up_direction) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) {
+			on_floor = true;
+			floor_normal = result.collision_normal;
+			_set_platform_data(result);
+
+			if (floor_stop_on_slope) {
+				// move and collide may stray the object a bit because of pre un-stucking,
+				// so only ensure that motion happens on floor direction in this case.
+				if (result.travel.length() > margin) {
+					result.travel = up_direction * up_direction.dot(result.travel);
+				} else {
+					result.travel = Vector2();
+				}
+			}
+		} else {
+			apply = false;
+		}
+
 		if (apply) {
-			gt.elements[2] += result.motion;
+			gt.elements[2] += result.travel;
 			set_global_transform(gt);
 		}
 	}
 }
 
+bool CharacterBody2D::_on_floor_if_snapped(bool was_on_floor, bool vel_dir_facing_up) {
+	if (Math::is_equal_approx(floor_snap_length, 0) || up_direction == Vector2() || on_floor || !was_on_floor || vel_dir_facing_up) {
+		return false;
+	}
+
+	PhysicsServer2D::MotionResult result;
+	if (move_and_collide(up_direction * -floor_snap_length, result, margin, true, false, true)) {
+		if (result.get_angle(up_direction) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void CharacterBody2D::_set_collision_direction(const PhysicsServer2D::MotionResult &p_result) {
-	if (up_direction == Vector2()) {
-		//all is a wall
-		on_wall = true;
+	if (motion_mode == MOTION_MODE_GROUNDED && p_result.get_angle(up_direction) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) { //floor
+		on_floor = true;
+		floor_normal = p_result.collision_normal;
+		_set_platform_data(p_result);
+	} else if (motion_mode == MOTION_MODE_GROUNDED && p_result.get_angle(-up_direction) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) { //ceiling
+		on_ceiling = true;
 	} else {
-		if (Math::acos(p_result.collision_normal.dot(up_direction)) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) { //floor
-			on_floor = true;
-			floor_normal = p_result.collision_normal;
-			on_floor_body = p_result.collider;
-			floor_velocity = p_result.collider_velocity;
-		} else if (Math::acos(p_result.collision_normal.dot(-up_direction)) <= floor_max_angle + FLOOR_ANGLE_THRESHOLD) { //ceiling
-			on_ceiling = true;
-		} else {
-			on_wall = true;
-			on_floor_body = p_result.collider;
-			floor_velocity = p_result.collider_velocity;
+		on_wall = true;
+		// Don't apply wall velocity when the collider is a CharacterBody2D.
+		if (Object::cast_to<CharacterBody2D>(ObjectDB::get_instance(p_result.collider_id)) == nullptr) {
+			_set_platform_data(p_result);
 		}
 	}
 }
 
-bool CharacterBody2D::separate_raycast_shapes(PhysicsServer2D::MotionResult &r_result) {
-	PhysicsServer2D::SeparationResult sep_res[8]; //max 8 rays
-
-	Transform2D gt = get_global_transform();
-
-	Vector2 recover;
-	int hits = PhysicsServer2D::get_singleton()->body_test_ray_separation(get_rid(), gt, infinite_inertia, recover, sep_res, 8, margin);
-	int deepest = -1;
-	real_t deepest_depth;
-	for (int i = 0; i < hits; i++) {
-		if (deepest == -1 || sep_res[i].collision_depth > deepest_depth) {
-			deepest = i;
-			deepest_depth = sep_res[i].collision_depth;
-		}
-	}
-
-	gt.elements[2] += recover;
-	set_global_transform(gt);
-
-	if (deepest != -1) {
-		r_result.collider_id = sep_res[deepest].collider_id;
-		r_result.collider_metadata = sep_res[deepest].collider_metadata;
-		r_result.collider_shape = sep_res[deepest].collider_shape;
-		r_result.collider_velocity = sep_res[deepest].collider_velocity;
-		r_result.collision_point = sep_res[deepest].collision_point;
-		r_result.collision_normal = sep_res[deepest].collision_normal;
-		r_result.collision_local_shape = sep_res[deepest].collision_local_shape;
-		r_result.motion = recover;
-		r_result.remainder = Vector2();
-
-		return true;
-	} else {
-		return false;
+void CharacterBody2D::_set_platform_data(const PhysicsServer2D::MotionResult &p_result) {
+	platform_rid = p_result.collider;
+	platform_velocity = p_result.collider_velocity;
+	platform_layer = 0;
+	CollisionObject2D *collision_object = Object::cast_to<CollisionObject2D>(ObjectDB::get_instance(p_result.collider_id));
+	if (collision_object) {
+		platform_layer = collision_object->get_collision_layer();
 	}
 }
 
@@ -1256,23 +1365,40 @@ bool CharacterBody2D::is_on_floor() const {
 	return on_floor;
 }
 
+bool CharacterBody2D::is_on_floor_only() const {
+	return on_floor && !on_wall && !on_ceiling;
+}
+
 bool CharacterBody2D::is_on_wall() const {
 	return on_wall;
+}
+
+bool CharacterBody2D::is_on_wall_only() const {
+	return on_wall && !on_floor && !on_ceiling;
 }
 
 bool CharacterBody2D::is_on_ceiling() const {
 	return on_ceiling;
 }
 
+bool CharacterBody2D::is_on_ceiling_only() const {
+	return on_ceiling && !on_floor && !on_wall;
+}
+
 Vector2 CharacterBody2D::get_floor_normal() const {
 	return floor_normal;
 }
 
-Vector2 CharacterBody2D::get_floor_velocity() const {
-	return floor_velocity;
+real_t CharacterBody2D::get_floor_angle(const Vector2 &p_up_direction) const {
+	ERR_FAIL_COND_V(p_up_direction == Vector2(), 0);
+	return Math::acos(floor_normal.dot(p_up_direction));
 }
 
-int CharacterBody2D::get_slide_count() const {
+Vector2 CharacterBody2D::get_platform_velocity() const {
+	return platform_velocity;
+}
+
+int CharacterBody2D::get_slide_collision_count() const {
 	return motion_results.size();
 }
 
@@ -1296,6 +1422,13 @@ Ref<KinematicCollision2D> CharacterBody2D::_get_slide_collision(int p_bounce) {
 	return slide_colliders[p_bounce];
 }
 
+Ref<KinematicCollision2D> CharacterBody2D::_get_last_slide_collision() {
+	if (motion_results.size() == 0) {
+		return Ref<KinematicCollision2D>();
+	}
+	return _get_slide_collision(motion_results.size() - 1);
+}
+
 void CharacterBody2D::set_safe_margin(real_t p_margin) {
 	margin = p_margin;
 }
@@ -1304,19 +1437,52 @@ real_t CharacterBody2D::get_safe_margin() const {
 	return margin;
 }
 
-bool CharacterBody2D::is_stop_on_slope_enabled() const {
-	return stop_on_slope;
+bool CharacterBody2D::is_floor_stop_on_slope_enabled() const {
+	return floor_stop_on_slope;
 }
 
-void CharacterBody2D::set_stop_on_slope_enabled(bool p_enabled) {
-	stop_on_slope = p_enabled;
+void CharacterBody2D::set_floor_stop_on_slope_enabled(bool p_enabled) {
+	floor_stop_on_slope = p_enabled;
 }
 
-bool CharacterBody2D::is_infinite_inertia_enabled() const {
-	return infinite_inertia;
+bool CharacterBody2D::is_floor_constant_speed_enabled() const {
+	return floor_constant_speed;
 }
-void CharacterBody2D::set_infinite_inertia_enabled(bool p_enabled) {
-	infinite_inertia = p_enabled;
+
+void CharacterBody2D::set_floor_constant_speed_enabled(bool p_enabled) {
+	floor_constant_speed = p_enabled;
+}
+
+bool CharacterBody2D::is_floor_block_on_wall_enabled() const {
+	return floor_block_on_wall;
+}
+
+void CharacterBody2D::set_floor_block_on_wall_enabled(bool p_enabled) {
+	floor_block_on_wall = p_enabled;
+}
+
+bool CharacterBody2D::is_slide_on_ceiling_enabled() const {
+	return slide_on_ceiling;
+}
+
+void CharacterBody2D::set_slide_on_ceiling_enabled(bool p_enabled) {
+	slide_on_ceiling = p_enabled;
+}
+
+uint32_t CharacterBody2D::get_moving_platform_ignore_layers() const {
+	return moving_platform_ignore_layers;
+}
+
+void CharacterBody2D::set_moving_platform_ignore_layers(uint32_t p_exclude_layers) {
+	moving_platform_ignore_layers = p_exclude_layers;
+}
+
+void CharacterBody2D::set_motion_mode(MotionMode p_mode) {
+	motion_mode = p_mode;
+}
+
+CharacterBody2D::MotionMode CharacterBody2D::get_motion_mode() const {
+	return motion_mode;
 }
 
 int CharacterBody2D::get_max_slides() const {
@@ -1336,12 +1502,21 @@ void CharacterBody2D::set_floor_max_angle(real_t p_radians) {
 	floor_max_angle = p_radians;
 }
 
-const Vector2 &CharacterBody2D::get_snap() const {
-	return snap;
+real_t CharacterBody2D::get_floor_snap_length() {
+	return floor_snap_length;
 }
 
-void CharacterBody2D::set_snap(const Vector2 &p_snap) {
-	snap = p_snap;
+void CharacterBody2D::set_floor_snap_length(real_t p_floor_snap_length) {
+	ERR_FAIL_COND(p_floor_snap_length < 0);
+	floor_snap_length = p_floor_snap_length;
+}
+
+real_t CharacterBody2D::get_free_mode_min_slide_angle() const {
+	return free_mode_min_slide_angle;
+}
+
+void CharacterBody2D::set_free_mode_min_slide_angle(real_t p_radians) {
+	free_mode_min_slide_angle = p_radians;
 }
 
 const Vector2 &CharacterBody2D::get_up_direction() const {
@@ -1349,6 +1524,7 @@ const Vector2 &CharacterBody2D::get_up_direction() const {
 }
 
 void CharacterBody2D::set_up_direction(const Vector2 &p_up_direction) {
+	ERR_FAIL_COND_MSG(p_up_direction == Vector2(), "up_direction can't be equal to Vector2.ZERO, consider using Free motion mode instead.");
 	up_direction = p_up_direction.normalized();
 }
 
@@ -1357,11 +1533,11 @@ void CharacterBody2D::_notification(int p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			// Reset move_and_slide() data.
 			on_floor = false;
-			on_floor_body = RID();
+			platform_rid = RID();
 			on_ceiling = false;
 			on_wall = false;
 			motion_results.clear();
-			floor_velocity = Vector2();
+			platform_velocity = Vector2();
 		} break;
 	}
 }
@@ -1374,36 +1550,75 @@ void CharacterBody2D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_safe_margin", "pixels"), &CharacterBody2D::set_safe_margin);
 	ClassDB::bind_method(D_METHOD("get_safe_margin"), &CharacterBody2D::get_safe_margin);
-	ClassDB::bind_method(D_METHOD("is_stop_on_slope_enabled"), &CharacterBody2D::is_stop_on_slope_enabled);
-	ClassDB::bind_method(D_METHOD("set_stop_on_slope_enabled", "enabled"), &CharacterBody2D::set_stop_on_slope_enabled);
-	ClassDB::bind_method(D_METHOD("is_infinite_inertia_enabled"), &CharacterBody2D::is_infinite_inertia_enabled);
-	ClassDB::bind_method(D_METHOD("set_infinite_inertia_enabled", "enabled"), &CharacterBody2D::set_infinite_inertia_enabled);
+	ClassDB::bind_method(D_METHOD("is_floor_stop_on_slope_enabled"), &CharacterBody2D::is_floor_stop_on_slope_enabled);
+	ClassDB::bind_method(D_METHOD("set_floor_stop_on_slope_enabled", "enabled"), &CharacterBody2D::set_floor_stop_on_slope_enabled);
+	ClassDB::bind_method(D_METHOD("set_floor_constant_speed_enabled", "enabled"), &CharacterBody2D::set_floor_constant_speed_enabled);
+	ClassDB::bind_method(D_METHOD("is_floor_constant_speed_enabled"), &CharacterBody2D::is_floor_constant_speed_enabled);
+	ClassDB::bind_method(D_METHOD("set_floor_block_on_wall_enabled", "enabled"), &CharacterBody2D::set_floor_block_on_wall_enabled);
+	ClassDB::bind_method(D_METHOD("is_floor_block_on_wall_enabled"), &CharacterBody2D::is_floor_block_on_wall_enabled);
+	ClassDB::bind_method(D_METHOD("set_slide_on_ceiling_enabled", "enabled"), &CharacterBody2D::set_slide_on_ceiling_enabled);
+	ClassDB::bind_method(D_METHOD("is_slide_on_ceiling_enabled"), &CharacterBody2D::is_slide_on_ceiling_enabled);
+
+	ClassDB::bind_method(D_METHOD("set_moving_platform_ignore_layers", "exclude_layer"), &CharacterBody2D::set_moving_platform_ignore_layers);
+	ClassDB::bind_method(D_METHOD("get_moving_platform_ignore_layers"), &CharacterBody2D::get_moving_platform_ignore_layers);
+
 	ClassDB::bind_method(D_METHOD("get_max_slides"), &CharacterBody2D::get_max_slides);
 	ClassDB::bind_method(D_METHOD("set_max_slides", "max_slides"), &CharacterBody2D::set_max_slides);
 	ClassDB::bind_method(D_METHOD("get_floor_max_angle"), &CharacterBody2D::get_floor_max_angle);
 	ClassDB::bind_method(D_METHOD("set_floor_max_angle", "radians"), &CharacterBody2D::set_floor_max_angle);
-	ClassDB::bind_method(D_METHOD("get_snap"), &CharacterBody2D::get_snap);
-	ClassDB::bind_method(D_METHOD("set_snap", "snap"), &CharacterBody2D::set_snap);
+	ClassDB::bind_method(D_METHOD("get_floor_snap_length"), &CharacterBody2D::get_floor_snap_length);
+	ClassDB::bind_method(D_METHOD("set_floor_snap_length", "floor_snap_length"), &CharacterBody2D::set_floor_snap_length);
+	ClassDB::bind_method(D_METHOD("get_free_mode_min_slide_angle"), &CharacterBody2D::get_free_mode_min_slide_angle);
+	ClassDB::bind_method(D_METHOD("set_free_mode_min_slide_angle", "radians"), &CharacterBody2D::set_free_mode_min_slide_angle);
 	ClassDB::bind_method(D_METHOD("get_up_direction"), &CharacterBody2D::get_up_direction);
 	ClassDB::bind_method(D_METHOD("set_up_direction", "up_direction"), &CharacterBody2D::set_up_direction);
+	ClassDB::bind_method(D_METHOD("set_motion_mode", "mode"), &CharacterBody2D::set_motion_mode);
+	ClassDB::bind_method(D_METHOD("get_motion_mode"), &CharacterBody2D::get_motion_mode);
 
 	ClassDB::bind_method(D_METHOD("is_on_floor"), &CharacterBody2D::is_on_floor);
+	ClassDB::bind_method(D_METHOD("is_on_floor_only"), &CharacterBody2D::is_on_floor_only);
 	ClassDB::bind_method(D_METHOD("is_on_ceiling"), &CharacterBody2D::is_on_ceiling);
+	ClassDB::bind_method(D_METHOD("is_on_ceiling_only"), &CharacterBody2D::is_on_ceiling_only);
 	ClassDB::bind_method(D_METHOD("is_on_wall"), &CharacterBody2D::is_on_wall);
+	ClassDB::bind_method(D_METHOD("is_on_wall_only"), &CharacterBody2D::is_on_wall_only);
 	ClassDB::bind_method(D_METHOD("get_floor_normal"), &CharacterBody2D::get_floor_normal);
-	ClassDB::bind_method(D_METHOD("get_floor_velocity"), &CharacterBody2D::get_floor_velocity);
-	ClassDB::bind_method(D_METHOD("get_slide_count"), &CharacterBody2D::get_slide_count);
+	ClassDB::bind_method(D_METHOD("get_floor_angle", "up_direction"), &CharacterBody2D::get_floor_angle, DEFVAL(Vector2(0.0, -1.0)));
+	ClassDB::bind_method(D_METHOD("get_platform_velocity"), &CharacterBody2D::get_platform_velocity);
+	ClassDB::bind_method(D_METHOD("get_slide_collision_count"), &CharacterBody2D::get_slide_collision_count);
 	ClassDB::bind_method(D_METHOD("get_slide_collision", "slide_idx"), &CharacterBody2D::_get_slide_collision);
+	ClassDB::bind_method(D_METHOD("get_last_slide_collision"), &CharacterBody2D::_get_last_slide_collision);
 
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "motion_mode", PROPERTY_HINT_ENUM, "Grounded,Free", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), "set_motion_mode", "get_motion_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "linear_velocity"), "set_linear_velocity", "get_linear_velocity");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stop_on_slope"), "set_stop_on_slope_enabled", "is_stop_on_slope_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "infinite_inertia"), "set_infinite_inertia_enabled", "is_infinite_inertia_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_slides", PROPERTY_HINT_RANGE, "1,8,1,or_greater"), "set_max_slides", "get_max_slides");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "floor_max_angle", PROPERTY_HINT_RANGE, "0,180,0.1"), "set_floor_max_angle", "get_floor_max_angle");
-	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "snap"), "set_snap", "get_snap");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "slide_on_ceiling"), "set_slide_on_ceiling_enabled", "is_slide_on_ceiling_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_slides", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "set_max_slides", "get_max_slides");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "up_direction"), "set_up_direction", "get_up_direction");
-
+	ADD_GROUP("Free Mode", "free_mode_");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "free_mode_min_slide_angle", PROPERTY_HINT_RANGE, "0,180,0.1,radians", PROPERTY_USAGE_DEFAULT), "set_free_mode_min_slide_angle", "get_free_mode_min_slide_angle");
+	ADD_GROUP("Floor", "floor_");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "floor_stop_on_slope"), "set_floor_stop_on_slope_enabled", "is_floor_stop_on_slope_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "floor_constant_speed"), "set_floor_constant_speed_enabled", "is_floor_constant_speed_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "floor_block_on_wall"), "set_floor_block_on_wall_enabled", "is_floor_block_on_wall_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "floor_max_angle", PROPERTY_HINT_RANGE, "0,180,0.1,radians"), "set_floor_max_angle", "get_floor_max_angle");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "floor_snap_length", PROPERTY_HINT_RANGE, "0,1000,0.1"), "set_floor_snap_length", "get_floor_snap_length");
+	ADD_GROUP("Moving platform", "moving_platform");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "moving_platform_ignore_layers", PROPERTY_HINT_LAYERS_2D_PHYSICS), "set_moving_platform_ignore_layers", "get_moving_platform_ignore_layers");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "collision/safe_margin", PROPERTY_HINT_RANGE, "0.001,256,0.001"), "set_safe_margin", "get_safe_margin");
+
+	BIND_ENUM_CONSTANT(MOTION_MODE_GROUNDED);
+	BIND_ENUM_CONSTANT(MOTION_MODE_FREE);
+}
+
+void CharacterBody2D::_validate_property(PropertyInfo &property) const {
+	if (motion_mode == MOTION_MODE_FREE) {
+		if (property.name.begins_with("floor_") || property.name == "up_direction" || property.name == "slide_on_ceiling") {
+			property.usage = PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL;
+		}
+	} else {
+		if (property.name == "free_mode_min_slide_angle") {
+			property.usage = PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL;
+		}
+	}
 }
 
 CharacterBody2D::CharacterBody2D() :
@@ -1429,11 +1644,16 @@ Vector2 KinematicCollision2D::get_normal() const {
 }
 
 Vector2 KinematicCollision2D::get_travel() const {
-	return result.motion;
+	return result.travel;
 }
 
 Vector2 KinematicCollision2D::get_remainder() const {
 	return result.remainder;
+}
+
+real_t KinematicCollision2D::get_angle(const Vector2 &p_up_direction) const {
+	ERR_FAIL_COND_V(p_up_direction == Vector2(), 0);
+	return result.get_angle(p_up_direction);
 }
 
 Object *KinematicCollision2D::get_local_shape() const {
@@ -1490,6 +1710,7 @@ void KinematicCollision2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_normal"), &KinematicCollision2D::get_normal);
 	ClassDB::bind_method(D_METHOD("get_travel"), &KinematicCollision2D::get_travel);
 	ClassDB::bind_method(D_METHOD("get_remainder"), &KinematicCollision2D::get_remainder);
+	ClassDB::bind_method(D_METHOD("get_angle", "up_direction"), &KinematicCollision2D::get_angle, DEFVAL(Vector2(0.0, -1.0)));
 	ClassDB::bind_method(D_METHOD("get_local_shape"), &KinematicCollision2D::get_local_shape);
 	ClassDB::bind_method(D_METHOD("get_collider"), &KinematicCollision2D::get_collider);
 	ClassDB::bind_method(D_METHOD("get_collider_id"), &KinematicCollision2D::get_collider_id);

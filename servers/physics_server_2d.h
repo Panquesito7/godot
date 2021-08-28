@@ -210,7 +210,7 @@ class PhysicsServer2D : public Object {
 
 	static PhysicsServer2D *singleton;
 
-	virtual bool _body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, real_t p_margin = 0.08, const Ref<PhysicsTestMotionResult2D> &p_result = Ref<PhysicsTestMotionResult2D>(), bool p_exclude_raycast_shapes = true, const Vector<RID> &p_exclude = Vector<RID>());
+	virtual bool _body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, real_t p_margin = 0.08, const Ref<PhysicsTestMotionResult2D> &p_result = Ref<PhysicsTestMotionResult2D>(), bool p_collide_separation_ray = false, const Vector<RID> &p_exclude = Vector<RID>());
 
 protected:
 	static void _bind_methods();
@@ -219,8 +219,8 @@ public:
 	static PhysicsServer2D *get_singleton();
 
 	enum ShapeType {
-		SHAPE_LINE, ///< plane:"plane"
-		SHAPE_RAY, ///< float:"length"
+		SHAPE_WORLD_MARGIN, ///< plane:"plane"
+		SHAPE_SEPARATION_RAY, ///< float:"length"
 		SHAPE_SEGMENT, ///< float:"length"
 		SHAPE_CIRCLE, ///< float:"radius"
 		SHAPE_RECTANGLE, ///< vec3:"extents"
@@ -230,8 +230,8 @@ public:
 		SHAPE_CUSTOM, ///< Server-Implementation based custom shape, calling shape_create() with this value will result in an error
 	};
 
-	virtual RID line_shape_create() = 0;
-	virtual RID ray_shape_create() = 0;
+	virtual RID world_margin_shape_create() = 0;
+	virtual RID separation_ray_shape_create() = 0;
 	virtual RID segment_shape_create() = 0;
 	virtual RID circle_shape_create() = 0;
 	virtual RID rectangle_shape_create() = 0;
@@ -467,7 +467,7 @@ public:
 	virtual PhysicsDirectBodyState2D *body_get_direct_state(RID p_body) = 0;
 
 	struct MotionResult {
-		Vector2 motion;
+		Vector2 travel;
 		Vector2 remainder;
 
 		Vector2 collision_point;
@@ -481,9 +481,13 @@ public:
 		RID collider;
 		int collider_shape = 0;
 		Variant collider_metadata;
+
+		real_t get_angle(Vector2 p_up_direction) const {
+			return Math::acos(collision_normal.dot(p_up_direction));
+		}
 	};
 
-	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, real_t p_margin = 0.08, MotionResult *r_result = nullptr, bool p_exclude_raycast_shapes = true, const Set<RID> &p_exclude = Set<RID>()) = 0;
+	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, real_t p_margin = 0.08, MotionResult *r_result = nullptr, bool p_collide_separation_ray = false, const Set<RID> &p_exclude = Set<RID>()) = 0;
 
 	struct SeparationResult {
 		real_t collision_depth;
@@ -496,8 +500,6 @@ public:
 		int collider_shape;
 		Variant collider_metadata;
 	};
-
-	virtual int body_test_ray_separation(RID p_body, const Transform2D &p_transform, bool p_infinite_inertia, Vector2 &r_recover_motion, SeparationResult *r_results, int p_result_max, real_t p_margin = 0.08) = 0;
 
 	/* JOINT API */
 
@@ -592,8 +594,8 @@ protected:
 public:
 	PhysicsServer2D::MotionResult *get_result_ptr() const { return const_cast<PhysicsServer2D::MotionResult *>(&result); }
 
-	Vector2 get_motion() const;
-	Vector2 get_motion_remainder() const;
+	Vector2 get_travel() const;
+	Vector2 get_remainder() const;
 
 	Vector2 get_collision_point() const;
 	Vector2 get_collision_normal() const;

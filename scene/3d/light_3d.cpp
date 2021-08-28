@@ -30,10 +30,6 @@
 
 #include "light_3d.h"
 
-#include "core/config/engine.h"
-#include "core/config/project_settings.h"
-#include "scene/resources/surface_tool.h"
-
 bool Light3D::_can_gizmo_scale() const {
 	return false;
 }
@@ -344,7 +340,7 @@ Light3D::Light3D(RenderingServer::LightType p_type) {
 	set_param(PARAM_SHADOW_FADE_START, 0.8);
 	set_param(PARAM_SHADOW_PANCAKE_SIZE, 20.0);
 	set_param(PARAM_SHADOW_BLUR, 1.0);
-	set_param(PARAM_SHADOW_BIAS, 0.02);
+	set_param(PARAM_SHADOW_BIAS, 0.03);
 	set_param(PARAM_SHADOW_NORMAL_BIAS, 1.0);
 	set_param(PARAM_TRANSMITTANCE_BIAS, 0.05);
 	set_param(PARAM_SHADOW_VOLUMETRIC_FOG_FADE, 0.1);
@@ -425,8 +421,7 @@ DirectionalLight3D::DirectionalLight3D() :
 	set_param(PARAM_SHADOW_MAX_DISTANCE, 100);
 	set_param(PARAM_SHADOW_FADE_START, 0.8);
 	// Increase the default shadow bias to better suit most scenes.
-	// Leave normal bias untouched as it doesn't benefit DirectionalLight3D as much as OmniLight3D.
-	set_param(PARAM_SHADOW_BIAS, 0.05);
+	set_param(PARAM_SHADOW_BIAS, 0.1);
 	set_shadow_mode(SHADOW_PARALLEL_4_SPLITS);
 	blend_splits = false;
 }
@@ -467,8 +462,7 @@ OmniLight3D::OmniLight3D() :
 		Light3D(RenderingServer::LIGHT_OMNI) {
 	set_shadow_mode(SHADOW_CUBE);
 	// Increase the default shadow biases to better suit most scenes.
-	set_param(PARAM_SHADOW_BIAS, 0.1);
-	set_param(PARAM_SHADOW_NORMAL_BIAS, 2.0);
+	set_param(PARAM_SHADOW_BIAS, 0.2);
 }
 
 TypedArray<String> SpotLight3D::get_configuration_warnings() const {

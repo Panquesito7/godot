@@ -593,11 +593,10 @@
 			<argument index="0" name="body" type="RID" />
 			<argument index="1" name="from" type="Transform2D" />
 			<argument index="2" name="motion" type="Vector2" />
-			<argument index="3" name="infinite_inertia" type="bool" />
-			<argument index="4" name="margin" type="float" default="0.08" />
-			<argument index="5" name="result" type="PhysicsTestMotionResult2D" default="null" />
-			<argument index="6" name="exclude_raycast_shapes" type="bool" default="true" />
-			<argument index="7" name="exclude" type="Array" default="[]" />
+			<argument index="3" name="margin" type="float" default="0.08" />
+			<argument index="4" name="result" type="PhysicsTestMotionResult2D" default="null" />
+			<argument index="5" name="collide_separation_ray" type="bool" default="false" />
+			<argument index="6" name="exclude" type="Array" default="[]" />
 			<description>
 				Returns [code]true[/code] if a collision would result from moving in the given direction from a given point in space. Margin increases the size of the shapes involved in the collision detection. [PhysicsTestMotionResult2D] can be passed to return additional information in.
 			</description>
@@ -718,22 +717,17 @@
 				Sets a joint parameter. See [enum JointParam] for a list of available parameters.
 			</description>
 		</method>
-		<method name="line_shape_create">
-			<return type="RID" />
-			<description>
-			</description>
-		</method>
-		<method name="ray_shape_create">
-			<return type="RID" />
-			<description>
-			</description>
-		</method>
 		<method name="rectangle_shape_create">
 			<return type="RID" />
 			<description>
 			</description>
 		</method>
 		<method name="segment_shape_create">
+			<return type="RID" />
+			<description>
+			</description>
+		</method>
+		<method name="separation_ray_shape_create">
 			<return type="RID" />
 			<description>
 			</description>
@@ -819,6 +813,11 @@
 				Sets the value for a space parameter. See [enum SpaceParameter] for a list of available parameters.
 			</description>
 		</method>
+		<method name="world_margin_shape_create">
+			<return type="RID" />
+			<description>
+			</description>
+		</method>
 	</methods>
 	<constants>
 		<constant name="SPACE_PARAM_CONTACT_RECYCLE_RADIUS" value="0" enum="SpaceParameter">
@@ -844,13 +843,14 @@
 		</constant>
 		<constant name="SPACE_PARAM_TEST_MOTION_MIN_CONTACT_DEPTH" value="7" enum="SpaceParameter">
 		</constant>
-		<constant name="SHAPE_LINE" value="0" enum="ShapeType">
-			This is the constant for creating line shapes. A line shape is an infinite line with an origin point, and a normal. Thus, it can be used for front/behind checks.
+		<constant name="SHAPE_WORLD_MARGIN" value="0" enum="ShapeType">
+			This is the constant for creating world margin shapes. A world margin shape is an [i]infinite[/i] line with an origin point, and a normal. Thus, it can be used for front/behind checks.
 		</constant>
-		<constant name="SHAPE_RAY" value="1" enum="ShapeType">
+		<constant name="SHAPE_SEPARATION_RAY" value="1" enum="ShapeType">
+			This is the constant for creating separation ray shapes. A separation ray is defined by a length and separates itself from what is touching its far endpoint. Useful for character controllers.
 		</constant>
 		<constant name="SHAPE_SEGMENT" value="2" enum="ShapeType">
-			This is the constant for creating segment shapes. A segment shape is a line from a point A to a point B. It can be checked for intersections.
+			This is the constant for creating segment shapes. A segment shape is a [i]finite[/i] line from a point A to a point B. It can be checked for intersections.
 		</constant>
 		<constant name="SHAPE_CIRCLE" value="3" enum="ShapeType">
 			This is the constant for creating circle shapes. A circle shape only has a radius. It can be used for intersections and inside/outside checks.

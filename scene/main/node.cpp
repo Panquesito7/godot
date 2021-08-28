@@ -54,16 +54,11 @@ int Node::orphan_node_count = 0;
 void Node::_notification(int p_notification) {
 	switch (p_notification) {
 		case NOTIFICATION_PROCESS: {
-			if (get_script_instance()) {
-				Variant time = get_process_delta_time();
-				get_script_instance()->call(SceneStringNames::get_singleton()->_process, time);
-			}
+			GDVIRTUAL_CALL(_process, get_process_delta_time());
+
 		} break;
 		case NOTIFICATION_PHYSICS_PROCESS: {
-			if (get_script_instance()) {
-				Variant time = get_physics_process_delta_time();
-				get_script_instance()->call(SceneStringNames::get_singleton()->_physics_process, time);
-			}
+			GDVIRTUAL_CALL(_physics_process, get_physics_process_delta_time());
 
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
@@ -128,27 +123,26 @@ void Node::_notification(int p_notification) {
 		} break;
 		case NOTIFICATION_READY: {
 			if (get_script_instance()) {
-				if (get_script_instance()->has_method(SceneStringNames::get_singleton()->_input)) {
+				if (GDVIRTUAL_IS_OVERRIDDEN(_input)) {
 					set_process_input(true);
 				}
 
-				if (get_script_instance()->has_method(SceneStringNames::get_singleton()->_unhandled_input)) {
+				if (GDVIRTUAL_IS_OVERRIDDEN(_unhandled_input)) {
 					set_process_unhandled_input(true);
 				}
 
-				if (get_script_instance()->has_method(SceneStringNames::get_singleton()->_unhandled_key_input)) {
+				if (GDVIRTUAL_IS_OVERRIDDEN(_unhandled_key_input)) {
 					set_process_unhandled_key_input(true);
 				}
 
-				if (get_script_instance()->has_method(SceneStringNames::get_singleton()->_process)) {
+				if (GDVIRTUAL_IS_OVERRIDDEN(_process)) {
 					set_process(true);
 				}
-
-				if (get_script_instance()->has_method(SceneStringNames::get_singleton()->_physics_process)) {
+				if (GDVIRTUAL_IS_OVERRIDDEN(_physics_process)) {
 					set_physics_process(true);
 				}
 
-				get_script_instance()->call(SceneStringNames::get_singleton()->_ready);
+				GDVIRTUAL_CALL(_ready);
 			}
 			if (data.filename.length()) {
 				ERR_FAIL_COND(!is_inside_tree());
@@ -221,9 +215,7 @@ void Node::_propagate_enter_tree() {
 
 	notification(NOTIFICATION_ENTER_TREE);
 
-	if (get_script_instance()) {
-		get_script_instance()->call(SceneStringNames::get_singleton()->_enter_tree);
-	}
+	GDVIRTUAL_CALL(_enter_tree);
 
 	emit_signal(SceneStringNames::get_singleton()->tree_entered);
 
@@ -269,9 +261,8 @@ void Node::_propagate_exit_tree() {
 
 	data.blocked--;
 
-	if (get_script_instance()) {
-		get_script_instance()->call(SceneStringNames::get_singleton()->_exit_tree);
-	}
+	GDVIRTUAL_CALL(_exit_tree);
+
 	emit_signal(SceneStringNames::get_singleton()->tree_exiting);
 
 	notification(NOTIFICATION_EXIT_TREE, true);
@@ -2465,7 +2456,7 @@ NodePath Node::get_import_path() const {
 
 static void _add_nodes_to_options(const Node *p_base, const Node *p_node, List<String> *r_options) {
 #ifdef TOOLS_ENABLED
-	const String quote_style = EDITOR_DEF("text_editor/completion/use_single_quotes", 0) ? "'" : "\"";
+	const String quote_style = EDITOR_GET("text_editor/completion/use_single_quotes") ? "'" : "\"";
 #else
 	const String quote_style = "\"";
 #endif
@@ -2474,7 +2465,7 @@ static void _add_nodes_to_options(const Node *p_base, const Node *p_node, List<S
 		return;
 	}
 	String n = p_base->get_path_to(p_node);
-	r_options->push_back(quote_style + n + quote_style);
+	r_options->push_back(n.quote(quote_style));
 	for (int i = 0; i < p_node->get_child_count(); i++) {
 		_add_nodes_to_options(p_base, p_node->get_child(i), r_options);
 	}
@@ -2496,9 +2487,14 @@ void Node::clear_internal_tree_resource_paths() {
 }
 
 TypedArray<String> Node::get_configuration_warnings() const {
-	if (get_script_instance() && get_script_instance()->get_script().is_valid() &&
-			get_script_instance()->get_script()->is_tool() && get_script_instance()->has_method("_get_configuration_warnings")) {
-		return get_script_instance()->call("_get_configuration_warnings");
+	Vector<String> warnings;
+	if (GDVIRTUAL_CALL(_get_configuration_warnings, warnings)) {
+		TypedArray<String> ret;
+		ret.resize(warnings.size());
+		for (int i = 0; i < warnings.size(); i++) {
+			ret[i] = warnings[i];
+		}
+		return ret;
 	}
 	return Array();
 }
@@ -2542,6 +2538,37 @@ bool Node::is_displayed_folded() const {
 
 void Node::request_ready() {
 	data.ready_first = true;
+}
+
+void Node::_call_input(const Ref<InputEvent> &p_event) {
+	GDVIRTUAL_CALL(_input, p_event);
+	if (!is_inside_tree() || !get_viewport() || get_viewport()->is_input_handled()) {
+		return;
+	}
+	input(p_event);
+}
+void Node::_call_unhandled_input(const Ref<InputEvent> &p_event) {
+	GDVIRTUAL_CALL(_unhandled_input, p_event);
+	if (!is_inside_tree() || !get_viewport() || get_viewport()->is_input_handled()) {
+		return;
+	}
+	unhandled_input(p_event);
+}
+void Node::_call_unhandled_key_input(const Ref<InputEvent> &p_event) {
+	GDVIRTUAL_CALL(_unhandled_key_input, p_event);
+	if (!is_inside_tree() || !get_viewport() || get_viewport()->is_input_handled()) {
+		return;
+	}
+	unhandled_key_input(p_event);
+}
+
+void Node::input(const Ref<InputEvent> &p_event) {
+}
+
+void Node::unhandled_input(const Ref<InputEvent> &p_event) {
+}
+
+void Node::unhandled_key_input(const Ref<InputEvent> &p_key_event) {
 }
 
 void Node::_bind_methods() {
@@ -2625,6 +2652,8 @@ void Node::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_scene_instance_load_placeholder", "load_placeholder"), &Node::set_scene_instance_load_placeholder);
 	ClassDB::bind_method(D_METHOD("get_scene_instance_load_placeholder"), &Node::get_scene_instance_load_placeholder);
+	ClassDB::bind_method(D_METHOD("set_editable_instance", "node", "is_editable"), &Node::set_editable_instance);
+	ClassDB::bind_method(D_METHOD("is_editable_instance", "node"), &Node::is_editable_instance);
 
 	ClassDB::bind_method(D_METHOD("get_viewport"), &Node::get_viewport);
 
@@ -2737,15 +2766,15 @@ void Node::_bind_methods() {
 	ADD_GROUP("Editor Description", "editor_");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "editor_description", PROPERTY_HINT_MULTILINE_TEXT, "", PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_INTERNAL), "set_editor_description", "get_editor_description");
 
-	BIND_VMETHOD(MethodInfo("_process", PropertyInfo(Variant::FLOAT, "delta")));
-	BIND_VMETHOD(MethodInfo("_physics_process", PropertyInfo(Variant::FLOAT, "delta")));
-	BIND_VMETHOD(MethodInfo("_enter_tree"));
-	BIND_VMETHOD(MethodInfo("_exit_tree"));
-	BIND_VMETHOD(MethodInfo("_ready"));
-	BIND_VMETHOD(MethodInfo("_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent")));
-	BIND_VMETHOD(MethodInfo("_unhandled_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent")));
-	BIND_VMETHOD(MethodInfo("_unhandled_key_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEventKey")));
-	BIND_VMETHOD(MethodInfo(PropertyInfo(Variant::ARRAY, "", PROPERTY_HINT_ARRAY_TYPE, "String"), "_get_configuration_warnings"));
+	GDVIRTUAL_BIND(_process, "delta");
+	GDVIRTUAL_BIND(_physics_process, "delta");
+	GDVIRTUAL_BIND(_enter_tree);
+	GDVIRTUAL_BIND(_exit_tree);
+	GDVIRTUAL_BIND(_ready);
+	GDVIRTUAL_BIND(_get_configuration_warnings);
+	GDVIRTUAL_BIND(_input, "event");
+	GDVIRTUAL_BIND(_unhandled_input, "event");
+	GDVIRTUAL_BIND(_unhandled_key_input, "event");
 }
 
 String Node::_get_name_num_separator() {

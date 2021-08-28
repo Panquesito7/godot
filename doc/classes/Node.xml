@@ -35,8 +35,8 @@
 				Corresponds to the [constant NOTIFICATION_EXIT_TREE] notification in [method Object._notification] and signal [signal tree_exiting]. To get notified when the node has already left the active tree, connect to the [signal tree_exited].
 			</description>
 		</method>
-		<method name="_get_configuration_warnings" qualifiers="virtual">
-			<return type="String[]" />
+		<method name="_get_configuration_warnings" qualifiers="virtual const">
+			<return type="PackedStringArray" />
 			<description>
 				The elements in the array returned from this method are displayed as warnings in the Scene Dock if the script that overrides it is a [code]tool[/code] script.
 				Returning an empty array produces no warnings.
@@ -96,9 +96,9 @@
 		</method>
 		<method name="_unhandled_key_input" qualifiers="virtual">
 			<return type="void" />
-			<argument index="0" name="event" type="InputEventKey" />
+			<argument index="0" name="event" type="InputEvent" />
 			<description>
-				Called when an [InputEventKey] hasn't been consumed by [method _input] or any GUI. The input event propagates up through the node tree until a node consumes it.
+				Called when an [InputEventKey] or [InputEventShortcut] hasn't been consumed by [method _input] or any GUI. The input event propagates up through the node tree until a node consumes it.
 				It is only called if unhandled key input processing is enabled, which is done automatically if this method is overridden, and can be toggled with [method set_process_unhandled_key_input].
 				To consume the input event and stop it propagating further to other nodes, [method Viewport.set_input_as_handled] can be called.
 				For gameplay input, this and [method _unhandled_input] are usually a better fit than [method _input] as they allow the GUI to intercept the events first.
@@ -325,7 +325,7 @@
 		<method name="get_physics_process_delta_time" qualifiers="const">
 			<return type="float" />
 			<description>
-				Returns the time elapsed (in seconds) since the last physics-bound frame (see [method _physics_process]). This is always a constant value in physics processing unless the frames per second is changed via [member Engine.iterations_per_second].
+				Returns the time elapsed (in seconds) since the last physics-bound frame (see [method _physics_process]). This is always a constant value in physics processing unless the frames per second is changed via [member Engine.physics_ticks_per_second].
 			</description>
 		</method>
 		<method name="get_process_delta_time" qualifiers="const">
@@ -376,7 +376,14 @@
 		<method name="is_displayed_folded" qualifiers="const">
 			<return type="bool" />
 			<description>
-				Returns [code]true[/code] if the node is folded (collapsed) in the Scene dock.
+				Returns [code]true[/code] if the node is folded (collapsed) in the Scene dock. This method is only intended for use with editor tooling.
+			</description>
+		</method>
+		<method name="is_editable_instance" qualifiers="const">
+			<return type="bool" />
+			<argument index="0" name="node" type="Node" />
+			<description>
+				Returns [code]true[/code] if [code]node[/code] has editable children enabled relative to this node. This method is only intended for use with editor tooling.
 			</description>
 		</method>
 		<method name="is_greater_than" qualifiers="const">
@@ -584,7 +591,15 @@
 			<return type="void" />
 			<argument index="0" name="fold" type="bool" />
 			<description>
-				Sets the folded state of the node in the Scene dock.
+				Sets the folded state of the node in the Scene dock. This method is only intended for use with editor tooling.
+			</description>
+		</method>
+		<method name="set_editable_instance">
+			<return type="void" />
+			<argument index="0" name="node" type="Node" />
+			<argument index="1" name="is_editable" type="bool" />
+			<description>
+				Sets the editable children state of [code]node[/code] relative to this node. This method is only intended for use with editor tooling.
 			</description>
 		</method>
 		<method name="set_editor_description">
@@ -605,7 +620,7 @@
 			<return type="void" />
 			<argument index="0" name="enable" type="bool" />
 			<description>
-				Enables or disables physics (i.e. fixed framerate) processing. When a node is being processed, it will receive a [constant NOTIFICATION_PHYSICS_PROCESS] at a fixed (usually 60 FPS, see [member Engine.iterations_per_second] to change) interval (and the [method _physics_process] callback will be called if exists). Enabled automatically if [method _physics_process] is overridden. Any calls to this before [method _ready] will be ignored.
+				Enables or disables physics (i.e. fixed framerate) processing. When a node is being processed, it will receive a [constant NOTIFICATION_PHYSICS_PROCESS] at a fixed (usually 60 FPS, see [member Engine.physics_ticks_per_second] to change) interval (and the [method _physics_process] callback will be called if exists). Enabled automatically if [method _physics_process] is overridden. Any calls to this before [method _ready] will be ignored.
 			</description>
 		</method>
 		<method name="set_physics_process_internal">

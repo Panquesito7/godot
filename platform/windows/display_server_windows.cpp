@@ -854,12 +854,13 @@ Size2i DisplayServerWindows::window_get_size(WindowID p_window) const {
 	ERR_FAIL_COND_V(!windows.has(p_window), Size2i());
 	const WindowData &wd = windows[p_window];
 
+	// GetClientRect() returns a zero rect for a minimized window, so we need to get the size in another way.
 	if (wd.minimized) {
 		return Size2(wd.width, wd.height);
 	}
 
 	RECT r;
-	if (GetClientRect(wd.hWnd, &r)) { // Only area inside of window border
+	if (GetClientRect(wd.hWnd, &r)) { // Retrieves area inside of window border.
 		return Size2(r.right - r.left, r.bottom - r.top);
 	}
 	return Size2();
@@ -1527,7 +1528,7 @@ void DisplayServerWindows::process_events() {
 
 	if (!drop_events) {
 		_process_key_events();
-		Input::get_singleton()->flush_accumulated_events();
+		Input::get_singleton()->flush_buffered_events();
 	}
 }
 
@@ -1738,7 +1739,7 @@ void DisplayServerWindows::_touch_event(WindowID p_window, bool p_pressed, float
 	event->set_pressed(p_pressed);
 	event->set_position(Vector2(p_x, p_y));
 
-	Input::get_singleton()->accumulate_input_event(event);
+	Input::get_singleton()->parse_input_event(event);
 }
 
 void DisplayServerWindows::_drag_event(WindowID p_window, float p_x, float p_y, int idx) {
@@ -1757,7 +1758,7 @@ void DisplayServerWindows::_drag_event(WindowID p_window, float p_x, float p_y, 
 	event->set_position(Vector2(p_x, p_y));
 	event->set_relative(Vector2(p_x, p_y) - curr->get());
 
-	Input::get_singleton()->accumulate_input_event(event);
+	Input::get_singleton()->parse_input_event(event);
 
 	curr->get() = Vector2(p_x, p_y);
 }
@@ -1900,7 +1901,9 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		}
 		case WM_GETMINMAXINFO: {
 			if (windows[window_id].resizable && !windows[window_id].fullscreen) {
-				Size2 decor = window_get_size(window_id) - window_get_real_size(window_id); // Size of window decorations
+				// Size of window decorations.
+				Size2 decor = window_get_real_size(window_id) - window_get_size(window_id);
+
 				MINMAXINFO *min_max_info = (MINMAXINFO *)lParam;
 				if (windows[window_id].min_size != Size2()) {
 					min_max_info->ptMinTrackSize.x = windows[window_id].min_size.x + decor.x;
@@ -2022,7 +2025,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				}
 
 				if (windows[window_id].window_has_focus && mm->get_relative() != Vector2())
-					Input::get_singleton()->accumulate_input_event(mm);
+					Input::get_singleton()->parse_input_event(mm);
 			}
 			delete[] lpb;
 		} break;
@@ -2111,7 +2114,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 					old_x = mm->get_position().x;
 					old_y = mm->get_position().y;
 					if (windows[window_id].window_has_focus)
-						Input::get_singleton()->accumulate_input_event(mm);
+						Input::get_singleton()->parse_input_event(mm);
 				}
 				return 0;
 			}
@@ -2258,7 +2261,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			old_x = mm->get_position().x;
 			old_y = mm->get_position().y;
 			if (windows[window_id].window_has_focus) {
-				Input::get_singleton()->accumulate_input_event(mm);
+				Input::get_singleton()->parse_input_event(mm);
 			}
 
 			return 0; //Pointer event handled return 0 to avoid duplicate WM_MOUSEMOVE event
@@ -2364,7 +2367,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			old_x = mm->get_position().x;
 			old_y = mm->get_position().y;
 			if (windows[window_id].window_has_focus)
-				Input::get_singleton()->accumulate_input_event(mm);
+				Input::get_singleton()->parse_input_event(mm);
 
 		} break;
 		case WM_LBUTTONDOWN:
@@ -2533,7 +2536,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 			mb->set_global_position(mb->get_position());
 
-			Input::get_singleton()->accumulate_input_event(mb);
+			Input::get_singleton()->parse_input_event(mb);
 			if (mb->is_pressed() && mb->get_button_index() > 3 && mb->get_button_index() < 8) {
 				//send release for mouse wheel
 				Ref<InputEventMouseButton> mbd = mb->duplicate();
@@ -2541,7 +2544,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				last_button_state &= (MouseButton) ~(1 << (mbd->get_button_index() - 1));
 				mbd->set_button_mask(last_button_state);
 				mbd->set_pressed(false);
-				Input::get_singleton()->accumulate_input_event(mbd);
+				Input::get_singleton()->parse_input_event(mbd);
 			}
 
 		} break;
@@ -2563,10 +2566,13 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		} break;
 
 		case WM_SIZE: {
-			// Ignore size when a SIZE_MINIMIZED event is triggered
+			// Ignore window size change when a SIZE_MINIMIZED event is triggered.
 			if (wParam != SIZE_MINIMIZED) {
+				// The new width and height of the client area.
 				int window_w = LOWORD(lParam);
 				int window_h = HIWORD(lParam);
+
+				// Set new value to the size if it isn't preserved.
 				if (window_w > 0 && window_h > 0 && !windows[window_id].preserve_window_size) {
 					windows[window_id].width = window_w;
 					windows[window_id].height = window_h;
@@ -2577,29 +2583,38 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 					}
 #endif
 
-				} else {
+				} else { // If the size is preserved.
 					windows[window_id].preserve_window_size = false;
+
+					// Restore the old size.
 					window_set_size(Size2(windows[window_id].width, windows[window_id].height), window_id);
 				}
-			} else {
+			} else { // When the window has been minimized, preserve its size.
 				windows[window_id].preserve_window_size = true;
 			}
 
+			// Call windows rect change callback.
 			if (!windows[window_id].rect_changed_callback.is_null()) {
 				Variant size = Rect2i(windows[window_id].last_pos.x, windows[window_id].last_pos.y, windows[window_id].width, windows[window_id].height);
-				Variant *sizep = &size;
+				Variant *size_ptr = &size;
 				Variant ret;
 				Callable::CallError ce;
-				windows[window_id].rect_changed_callback.call((const Variant **)&sizep, 1, ret, ce);
+				windows[window_id].rect_changed_callback.call((const Variant **)&size_ptr, 1, ret, ce);
 			}
 
+			// The window has been maximized.
 			if (wParam == SIZE_MAXIMIZED) {
 				windows[window_id].maximized = true;
 				windows[window_id].minimized = false;
-			} else if (wParam == SIZE_MINIMIZED) {
+			}
+			// The window has been minimized.
+			else if (wParam == SIZE_MINIMIZED) {
 				windows[window_id].maximized = false;
 				windows[window_id].minimized = true;
-			} else if (wParam == SIZE_RESTORED) {
+				windows[window_id].preserve_window_size = false;
+			}
+			// The window has been resized, but neither the SIZE_MINIMIZED nor SIZE_MAXIMIZED value applies.
+			else if (wParam == SIZE_RESTORED) {
 				windows[window_id].maximized = false;
 				windows[window_id].minimized = false;
 			}
@@ -2626,7 +2641,6 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				ZeroMemory(dib_data, dib_size.x * dib_size.y * 4);
 			}
 #endif
-			//return 0;								// Jump Back
 		} break;
 
 		case WM_ENTERSIZEMOVE: {
@@ -2855,8 +2869,8 @@ void DisplayServerWindows::_process_key_events() {
 					k->set_ctrl_pressed(ke.control);
 					k->set_meta_pressed(ke.meta);
 					k->set_pressed(true);
-					k->set_keycode(KeyMappingWindows::get_keysym(ke.wParam));
-					k->set_physical_keycode(KeyMappingWindows::get_scansym((ke.lParam >> 16) & 0xFF, ke.lParam & (1 << 24)));
+					k->set_keycode((Key)KeyMappingWindows::get_keysym(ke.wParam));
+					k->set_physical_keycode((Key)(KeyMappingWindows::get_scansym((ke.lParam >> 16) & 0xFF, ke.lParam & (1 << 24))));
 					k->set_unicode(unicode);
 					if (k->get_unicode() && gr_mem) {
 						k->set_alt_pressed(false);
@@ -2866,7 +2880,7 @@ void DisplayServerWindows::_process_key_events() {
 					if (k->get_unicode() < 32)
 						k->set_unicode(0);
 
-					Input::get_singleton()->accumulate_input_event(k);
+					Input::get_singleton()->parse_input_event(k);
 				}
 
 				//do nothing
@@ -2888,10 +2902,10 @@ void DisplayServerWindows::_process_key_events() {
 					// Special case for Numpad Enter key
 					k->set_keycode(KEY_KP_ENTER);
 				} else {
-					k->set_keycode(KeyMappingWindows::get_keysym(ke.wParam));
+					k->set_keycode((Key)KeyMappingWindows::get_keysym(ke.wParam));
 				}
 
-				k->set_physical_keycode(KeyMappingWindows::get_scansym((ke.lParam >> 16) & 0xFF, ke.lParam & (1 << 24)));
+				k->set_physical_keycode((Key)(KeyMappingWindows::get_scansym((ke.lParam >> 16) & 0xFF, ke.lParam & (1 << 24))));
 
 				if (i + 1 < key_event_pos && key_event_buffer[i + 1].uMsg == WM_CHAR) {
 					char32_t unicode = key_event_buffer[i + 1].wParam;
@@ -2924,7 +2938,7 @@ void DisplayServerWindows::_process_key_events() {
 
 				k->set_echo((ke.uMsg == WM_KEYDOWN && (ke.lParam & (1 << 30))));
 
-				Input::get_singleton()->accumulate_input_event(k);
+				Input::get_singleton()->parse_input_event(k);
 
 			} break;
 		}

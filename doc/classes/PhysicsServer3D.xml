@@ -569,9 +569,10 @@
 			<argument index="0" name="body" type="RID" />
 			<argument index="1" name="from" type="Transform3D" />
 			<argument index="2" name="motion" type="Vector3" />
-			<argument index="3" name="infinite_inertia" type="bool" />
-			<argument index="4" name="margin" type="float" default="0.001" />
-			<argument index="5" name="result" type="PhysicsTestMotionResult3D" default="null" />
+			<argument index="3" name="margin" type="float" default="0.001" />
+			<argument index="4" name="result" type="PhysicsTestMotionResult3D" default="null" />
+			<argument index="5" name="collide_separation_ray" type="bool" default="false" />
+			<argument index="6" name="exclude" type="Array" default="[]" />
 			<description>
 				Returns [code]true[/code] if a collision would result from moving in the given direction from a given point in space. Margin increases the size of the shapes involved in the collision detection. [PhysicsTestMotionResult3D] can be passed to return additional information in.
 			</description>
@@ -849,7 +850,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="ray_shape_create">
+		<method name="separation_ray_shape_create">
 			<return type="RID" />
 			<description>
 			</description>
@@ -1176,8 +1177,8 @@
 		<constant name="SHAPE_PLANE" value="0" enum="ShapeType">
 			The [Shape3D] is a [WorldMarginShape3D].
 		</constant>
-		<constant name="SHAPE_RAY" value="1" enum="ShapeType">
-			The [Shape3D] is a [RayShape3D].
+		<constant name="SHAPE_SEPARATION_RAY" value="1" enum="ShapeType">
+			The [Shape3D] is a [SeparationRayShape3D].
 		</constant>
 		<constant name="SHAPE_SPHERE" value="2" enum="ShapeType">
 			The [Shape3D] is a [SphereShape3D].
@@ -1229,6 +1230,18 @@
 		</constant>
 		<constant name="AREA_PARAM_PRIORITY" value="7" enum="AreaParameter">
 			Constant to set/get the priority (order of processing) of an area.
+		</constant>
+		<constant name="AREA_PARAM_WIND_FORCE_MAGNITUDE" value="8" enum="AreaParameter">
+			Constant to set/get the magnitude of area-specific wind force.
+		</constant>
+		<constant name="AREA_PARAM_WIND_SOURCE" value="9" enum="AreaParameter">
+			Constant to set/get the 3D vector that specifies the origin from which an area-specific wind blows.
+		</constant>
+		<constant name="AREA_PARAM_WIND_DIRECTION" value="10" enum="AreaParameter">
+			Constant to set/get the 3D vector that specifies the direction in which an area-specific wind blows.
+		</constant>
+		<constant name="AREA_PARAM_WIND_ATTENUATION_FACTOR" value="11" enum="AreaParameter">
+			Constant to set/get the exponential rate at which wind force decreases with distance from its origin.
 		</constant>
 		<constant name="AREA_SPACE_OVERRIDE_DISABLED" value="0" enum="AreaSpaceOverrideMode">
 			This area does not affect gravity/damp. These are generally areas that exist only to detect collisions, and objects entering or exiting them.

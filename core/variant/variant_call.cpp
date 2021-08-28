@@ -1422,6 +1422,7 @@ static void _register_variant_builtin_methods() {
 
 	bind_method(String, is_absolute_path, sarray(), varray());
 	bind_method(String, is_rel_path, sarray(), varray());
+	bind_method(String, simplify_path, sarray(), varray());
 	bind_method(String, get_base_dir, sarray(), varray());
 	bind_method(String, get_file, sarray(), varray());
 	bind_method(String, xml_escape, sarray("escape_quotes"), varray(false));
@@ -1709,7 +1710,7 @@ static void _register_variant_builtin_methods() {
 	bind_method(Transform2D, interpolate_with, sarray("xform", "weight"), varray());
 	bind_method(Transform2D, is_equal_approx, sarray("xform"), varray());
 	bind_method(Transform2D, set_rotation, sarray("rotation"), varray());
-	bind_method(Transform2D, looking_at, sarray("target"), varray(Transform2D()));
+	bind_method(Transform2D, looking_at, sarray("target"), varray(Vector2()));
 
 	/* Basis */
 
@@ -1728,6 +1729,7 @@ static void _register_variant_builtin_methods() {
 	bind_method(Basis, slerp, sarray("to", "weight"), varray());
 	bind_method(Basis, is_equal_approx, sarray("b"), varray());
 	bind_method(Basis, get_rotation_quaternion, sarray(), varray());
+	bind_static_method(Basis, looking_at, sarray("target", "up"), varray(Vector3(0, 1, 0)));
 
 	/* AABB */
 
@@ -1805,6 +1807,7 @@ static void _register_variant_builtin_methods() {
 	bind_method(Array, has, sarray("value"), varray());
 	bind_method(Array, pop_back, sarray(), varray());
 	bind_method(Array, pop_front, sarray(), varray());
+	bind_method(Array, pop_at, sarray("position"), varray());
 	bind_method(Array, sort, sarray(), varray());
 	bind_method(Array, sort_custom, sarray("func"), varray());
 	bind_method(Array, shuffle, sarray(), varray());

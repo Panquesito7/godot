@@ -43,13 +43,14 @@ class VisualScriptEditorVariableEdit;
 
 #ifdef TOOLS_ENABLED
 
+// TODO: Maybe this class should be refactored.
+// See https://github.com/godotengine/godot/issues/51913
 class VisualScriptEditor : public ScriptEditorBase {
 	GDCLASS(VisualScriptEditor, ScriptEditorBase);
 
 	enum {
 		TYPE_SEQUENCE = 1000,
 		INDEX_BASE_SEQUENCE = 1024
-
 	};
 
 	enum {
@@ -60,7 +61,7 @@ class VisualScriptEditor : public ScriptEditorBase {
 		EDIT_CUT_NODES,
 		EDIT_PASTE_NODES,
 		EDIT_CREATE_FUNCTION,
-		REFRESH_GRAPH
+		REFRESH_GRAPH,
 	};
 
 	enum PortAction {
@@ -71,7 +72,6 @@ class VisualScriptEditor : public ScriptEditorBase {
 	enum MemberAction {
 		MEMBER_EDIT,
 		MEMBER_REMOVE
-
 	};
 
 	enum MemberType {
@@ -236,7 +236,7 @@ class VisualScriptEditor : public ScriptEditorBase {
 
 	void _generic_search(String p_base_type = "", Vector2 pos = Vector2(), bool node_centered = false);
 
-	void _input(const Ref<InputEvent> &p_event);
+	virtual void input(const Ref<InputEvent> &p_event) override;
 	void _graph_gui_input(const Ref<InputEvent> &p_event);
 	void _members_gui_input(const Ref<InputEvent> &p_event);
 	void _fn_name_box_input(const Ref<InputEvent> &p_event);
@@ -333,27 +333,28 @@ public:
 };
 
 // Singleton
-class _VisualScriptEditor : public Object {
-	GDCLASS(_VisualScriptEditor, Object);
+class VisualScriptCustomNodes : public Object {
+	GDCLASS(VisualScriptCustomNodes, Object);
 
 	friend class VisualScriptLanguage;
 
 protected:
 	static void _bind_methods();
-	static _VisualScriptEditor *singleton;
+	static VisualScriptCustomNodes *singleton;
 
 	static Map<String, REF> custom_nodes;
 	static Ref<VisualScriptNode> create_node_custom(const String &p_name);
 
 public:
-	static _VisualScriptEditor *get_singleton() { return singleton; }
+	static VisualScriptCustomNodes *get_singleton() { return singleton; }
 
 	void add_custom_node(const String &p_name, const String &p_category, const Ref<Script> &p_script);
 	void remove_custom_node(const String &p_name, const String &p_category);
 
-	_VisualScriptEditor();
-	~_VisualScriptEditor();
+	VisualScriptCustomNodes();
+	~VisualScriptCustomNodes();
 };
+
 #endif
 
 #endif // VISUALSCRIPT_EDITOR_H

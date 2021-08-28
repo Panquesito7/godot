@@ -3453,6 +3453,7 @@ void RendererStorageRD::multimesh_allocate_data(RID p_multimesh, int p_instances
 	if (multimesh->buffer.is_valid()) {
 		RD::get_singleton()->free(multimesh->buffer);
 		multimesh->buffer = RID();
+		multimesh->uniform_set_2d = RID(); //cleared by dependency
 		multimesh->uniform_set_3d = RID(); //cleared by dependency
 	}
 
@@ -4108,12 +4109,12 @@ void RendererStorageRD::particles_set_pre_process_time(RID p_particles, double p
 	ERR_FAIL_COND(!particles);
 	particles->pre_process_time = p_time;
 }
-void RendererStorageRD::particles_set_explosiveness_ratio(RID p_particles, float p_ratio) {
+void RendererStorageRD::particles_set_explosiveness_ratio(RID p_particles, real_t p_ratio) {
 	Particles *particles = particles_owner.getornull(p_particles);
 	ERR_FAIL_COND(!particles);
 	particles->explosiveness = p_ratio;
 }
-void RendererStorageRD::particles_set_randomness_ratio(RID p_particles, float p_ratio) {
+void RendererStorageRD::particles_set_randomness_ratio(RID p_particles, real_t p_ratio) {
 	Particles *particles = particles_owner.getornull(p_particles);
 	ERR_FAIL_COND(!particles);
 	particles->randomness = p_ratio;
@@ -4169,7 +4170,7 @@ void RendererStorageRD::particles_set_fractional_delta(RID p_particles, bool p_e
 	particles->fractional_delta = p_enable;
 }
 
-void RendererStorageRD::particles_set_trails(RID p_particles, bool p_enable, float p_length) {
+void RendererStorageRD::particles_set_trails(RID p_particles, bool p_enable, double p_length) {
 	Particles *particles = particles_owner.getornull(p_particles);
 	ERR_FAIL_COND(!particles);
 	ERR_FAIL_COND(p_length < 0.1);
@@ -4205,7 +4206,7 @@ void RendererStorageRD::particles_set_trail_bind_poses(RID p_particles, const Ve
 	particles->dependency.changed_notify(DEPENDENCY_CHANGED_PARTICLES);
 }
 
-void RendererStorageRD::particles_set_collision_base_size(RID p_particles, float p_size) {
+void RendererStorageRD::particles_set_collision_base_size(RID p_particles, real_t p_size) {
 	Particles *particles = particles_owner.getornull(p_particles);
 	ERR_FAIL_COND(!particles);
 
@@ -5267,8 +5268,7 @@ void RendererStorageRD::ParticlesShaderData::set_code(const String &p_code) {
 	actions.uniforms = &uniforms;
 
 	Error err = base_singleton->particles_shader.compiler.compile(RS::SHADER_PARTICLES, code, &actions, path, gen_code);
-
-	ERR_FAIL_COND(err != OK);
+	ERR_FAIL_COND_MSG(err != OK, "Shader compilation failed.");
 
 	if (version.is_null()) {
 		version = base_singleton->particles_shader.shader.version_create();
@@ -5463,7 +5463,7 @@ void RendererStorageRD::particles_collision_set_cull_mask(RID p_particles_collis
 	particles_collision->cull_mask = p_cull_mask;
 }
 
-void RendererStorageRD::particles_collision_set_sphere_radius(RID p_particles_collision, float p_radius) {
+void RendererStorageRD::particles_collision_set_sphere_radius(RID p_particles_collision, real_t p_radius) {
 	ParticlesCollision *particles_collision = particles_collision_owner.getornull(p_particles_collision);
 	ERR_FAIL_COND(!particles_collision);
 
@@ -5479,21 +5479,21 @@ void RendererStorageRD::particles_collision_set_box_extents(RID p_particles_coll
 	particles_collision->dependency.changed_notify(DEPENDENCY_CHANGED_AABB);
 }
 
-void RendererStorageRD::particles_collision_set_attractor_strength(RID p_particles_collision, float p_strength) {
+void RendererStorageRD::particles_collision_set_attractor_strength(RID p_particles_collision, real_t p_strength) {
 	ParticlesCollision *particles_collision = particles_collision_owner.getornull(p_particles_collision);
 	ERR_FAIL_COND(!particles_collision);
 
 	particles_collision->attractor_strength = p_strength;
 }
 
-void RendererStorageRD::particles_collision_set_attractor_directionality(RID p_particles_collision, float p_directionality) {
+void RendererStorageRD::particles_collision_set_attractor_directionality(RID p_particles_collision, real_t p_directionality) {
 	ParticlesCollision *particles_collision = particles_collision_owner.getornull(p_particles_collision);
 	ERR_FAIL_COND(!particles_collision);
 
 	particles_collision->attractor_directionality = p_directionality;
 }
 
-void RendererStorageRD::particles_collision_set_attractor_attenuation(RID p_particles_collision, float p_curve) {
+void RendererStorageRD::particles_collision_set_attractor_attenuation(RID p_particles_collision, real_t p_curve) {
 	ParticlesCollision *particles_collision = particles_collision_owner.getornull(p_particles_collision);
 	ERR_FAIL_COND(!particles_collision);
 
@@ -9128,26 +9128,42 @@ RendererStorageRD::RendererStorageRD() {
 				} break;
 				case RS::CANVAS_ITEM_TEXTURE_FILTER_NEAREST_WITH_MIPMAPS: {
 					sampler_state.mag_filter = RD::SAMPLER_FILTER_NEAREST;
-					sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
-					sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					sampler_state.min_filter = RD::SAMPLER_FILTER_NEAREST;
+					if (GLOBAL_GET("rendering/textures/default_filters/use_nearest_mipmap_filter")) {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_NEAREST;
+					} else {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					}
 				} break;
 				case RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR_WITH_MIPMAPS: {
 					sampler_state.mag_filter = RD::SAMPLER_FILTER_LINEAR;
 					sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
-					sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					if (GLOBAL_GET("rendering/textures/default_filters/use_nearest_mipmap_filter")) {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_NEAREST;
+					} else {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					}
 
 				} break;
 				case RS::CANVAS_ITEM_TEXTURE_FILTER_NEAREST_WITH_MIPMAPS_ANISOTROPIC: {
 					sampler_state.mag_filter = RD::SAMPLER_FILTER_NEAREST;
-					sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
-					sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					sampler_state.min_filter = RD::SAMPLER_FILTER_NEAREST;
+					if (GLOBAL_GET("rendering/textures/default_filters/use_nearest_mipmap_filter")) {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_NEAREST;
+					} else {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					}
 					sampler_state.use_anisotropy = true;
 					sampler_state.anisotropy_max = 1 << int(GLOBAL_GET("rendering/textures/default_filters/anisotropic_filtering_level"));
 				} break;
 				case RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC: {
 					sampler_state.mag_filter = RD::SAMPLER_FILTER_LINEAR;
 					sampler_state.min_filter = RD::SAMPLER_FILTER_LINEAR;
-					sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					if (GLOBAL_GET("rendering/textures/default_filters/use_nearest_mipmap_filter")) {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_NEAREST;
+					} else {
+						sampler_state.mip_filter = RD::SAMPLER_FILTER_LINEAR;
+					}
 					sampler_state.use_anisotropy = true;
 					sampler_state.anisotropy_max = 1 << int(GLOBAL_GET("rendering/textures/default_filters/anisotropic_filtering_level"));
 
@@ -9294,15 +9310,6 @@ RendererStorageRD::RendererStorageRD() {
 		}
 	}
 
-	{
-		Vector<String> sdf_versions;
-		sdf_versions.push_back(""); //one only
-		voxel_gi_sdf_shader.initialize(sdf_versions);
-		voxel_gi_sdf_shader_version = voxel_gi_sdf_shader.version_create();
-		voxel_gi_sdf_shader_version_shader = voxel_gi_sdf_shader.version_get_shader(voxel_gi_sdf_shader_version, 0);
-		voxel_gi_sdf_shader_pipeline = RD::get_singleton()->compute_pipeline_create(voxel_gi_sdf_shader_version_shader);
-	}
-
 	using_lightmap_array = true; // high end
 	if (using_lightmap_array) {
 		uint32_t textures_per_stage = RD::get_singleton()->limit_get(RD::LIMIT_MAX_TEXTURES_PER_SHADER_STAGE);
@@ -9391,6 +9398,8 @@ RendererStorageRD::RendererStorageRD() {
 		particles_shader.default_shader = shader_allocate();
 		shader_initialize(particles_shader.default_shader);
 		shader_set_code(particles_shader.default_shader, R"(
+// Default particles shader.
+
 shader_type particles;
 
 void process() {
@@ -9522,7 +9531,6 @@ RendererStorageRD::~RendererStorageRD() {
 		RD::get_singleton()->free(mesh_default_rd_buffers[i]);
 	}
 
-	voxel_gi_sdf_shader.version_free(voxel_gi_sdf_shader_version);
 	particles_shader.copy_shader.version_free(particles_shader.copy_shader_version);
 	rt_sdf.shader.version_free(rt_sdf.shader_version);
 

@@ -50,11 +50,11 @@ protected:
 
 	uint16_t locked_axis = 0;
 
-	Ref<KinematicCollision3D> _move(const Vector3 &p_motion, bool p_infinite_inertia = true, bool p_exclude_raycast_shapes = true, bool p_test_only = false, real_t p_margin = 0.001);
+	Ref<KinematicCollision3D> _move(const Vector3 &p_motion, bool p_test_only = false, real_t p_margin = 0.001);
 
 public:
-	bool move_and_collide(const Vector3 &p_motion, bool p_infinite_inertia, PhysicsServer3D::MotionResult &r_result, real_t p_margin, bool p_exclude_raycast_shapes = true, bool p_test_only = false, bool p_cancel_sliding = true);
-	bool test_move(const Transform3D &p_from, const Vector3 &p_motion, bool p_infinite_inertia = true, bool p_exclude_raycast_shapes = true, const Ref<KinematicCollision3D> &r_collision = Ref<KinematicCollision3D>(), real_t p_margin = 0.001);
+	bool move_and_collide(const Vector3 &p_motion, PhysicsServer3D::MotionResult &r_result, real_t p_margin, bool p_test_only = false, bool p_cancel_sliding = true, bool p_collide_separation_ray = false, const Set<RID> &p_exclude = Set<RID>());
+	bool test_move(const Transform3D &p_from, const Vector3 &p_motion, const Ref<KinematicCollision3D> &r_collision = Ref<KinematicCollision3D>(), real_t p_margin = 0.001);
 
 	void set_axis_lock(PhysicsServer3D::BodyAxis p_axis, bool p_lock);
 	bool get_axis_lock(PhysicsServer3D::BodyAxis p_axis) const;
@@ -131,6 +131,8 @@ public:
 		MODE_DYNAMIC_LOCKED,
 		MODE_KINEMATIC,
 	};
+
+	GDVIRTUAL1(_integrate_forces, PhysicsDirectBodyState3D *)
 
 protected:
 	bool can_sleep = true;
@@ -278,8 +280,7 @@ class CharacterBody3D : public PhysicsBody3D {
 private:
 	real_t margin = 0.001;
 
-	bool stop_on_slope = false;
-	bool infinite_inertia = true;
+	bool floor_stop_on_slope = false;
 	int max_slides = 4;
 	real_t floor_max_angle = Math::deg2rad((real_t)45.0);
 	Vector3 snap;
@@ -297,17 +298,15 @@ private:
 	Vector<Ref<KinematicCollision3D>> slide_colliders;
 
 	Ref<KinematicCollision3D> _get_slide_collision(int p_bounce);
+	Ref<KinematicCollision3D> _get_last_slide_collision();
 
-	bool separate_raycast_shapes(PhysicsServer3D::MotionResult &r_result);
+	void _set_collision_direction(const PhysicsServer3D::MotionResult &p_result);
 
 	void set_safe_margin(real_t p_margin);
 	real_t get_safe_margin() const;
 
-	bool is_stop_on_slope_enabled() const;
-	void set_stop_on_slope_enabled(bool p_enabled);
-
-	bool is_infinite_inertia_enabled() const;
-	void set_infinite_inertia_enabled(bool p_enabled);
+	bool is_floor_stop_on_slope_enabled() const;
+	void set_floor_stop_on_slope_enabled(bool p_enabled);
 
 	int get_max_slides() const;
 	void set_max_slides(int p_max_slides);
@@ -326,18 +325,22 @@ protected:
 	static void _bind_methods();
 
 public:
-	void move_and_slide();
+	bool move_and_slide();
 
 	virtual Vector3 get_linear_velocity() const override;
 	void set_linear_velocity(const Vector3 &p_velocity);
 
 	bool is_on_floor() const;
+	bool is_on_floor_only() const;
 	bool is_on_wall() const;
+	bool is_on_wall_only() const;
 	bool is_on_ceiling() const;
+	bool is_on_ceiling_only() const;
 	Vector3 get_floor_normal() const;
-	Vector3 get_floor_velocity() const;
+	real_t get_floor_angle(const Vector3 &p_up_direction = Vector3(0.0, 1.0, 0.0)) const;
+	Vector3 get_platform_velocity() const;
 
-	int get_slide_count() const;
+	int get_slide_collision_count() const;
 	PhysicsServer3D::MotionResult get_slide_collision(int p_bounce) const;
 
 	CharacterBody3D();
@@ -360,6 +363,7 @@ public:
 	Vector3 get_normal() const;
 	Vector3 get_travel() const;
 	Vector3 get_remainder() const;
+	real_t get_angle(const Vector3 &p_up_direction = Vector3(0.0, 1.0, 0.0)) const;
 	Object *get_local_shape() const;
 	Object *get_collider() const;
 	ObjectID get_collider_id() const;

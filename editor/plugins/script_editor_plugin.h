@@ -56,6 +56,9 @@ private:
 protected:
 	static void _bind_methods();
 
+	GDVIRTUAL0RC(String, _get_name)
+	GDVIRTUAL0RC(Array, _get_supported_languages)
+
 public:
 	virtual String _get_name() const;
 	virtual Array _get_supported_languages() const;
@@ -74,7 +77,7 @@ private:
 
 public:
 	virtual void _update_cache() override;
-	virtual Dictionary _get_line_syntax_highlighting(int p_line) override { return highlighter->get_line_syntax_highlighting(p_line); }
+	virtual Dictionary _get_line_syntax_highlighting_impl(int p_line) override { return highlighter->get_line_syntax_highlighting(p_line); }
 
 	virtual String _get_name() const override { return TTR("Standard"); }
 
@@ -344,6 +347,7 @@ class ScriptEditor : public PanelContainer {
 
 	bool pending_auto_reload;
 	bool auto_reload_running_scripts;
+	void _trigger_live_script_reload();
 	void _live_auto_reload_running_scripts();
 
 	void _update_selected_editor_menu();
@@ -407,7 +411,7 @@ class ScriptEditor : public PanelContainer {
 	bool can_drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) const;
 	void drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from);
 
-	void _unhandled_key_input(const Ref<InputEvent> &p_event);
+	virtual void unhandled_key_input(const Ref<InputEvent> &p_event) override;
 
 	void _script_list_gui_input(const Ref<InputEvent> &ev);
 	void _make_script_list_context_menu();
